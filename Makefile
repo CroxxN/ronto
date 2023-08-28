@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS=-Wall -Wpedantic
+CFLAGS=-Wall -Wpedantic -std=c99
 
 main: main.c
 	$(CC) main.c $(CFLAGS) -g -o main
