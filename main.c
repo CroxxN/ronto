@@ -7,10 +7,14 @@
 #include <unistd.h>
 
 struct Terminal {
-  struct termios *original_term;
+  struct termios original_term;
   bool is_raw;
   int fd;
   bool is_flush;
+} term = {{},
+0,
+  STDIN_FILENO,
+  0
 };
 
 // Checks whether a string is wholly alphanumeric
@@ -25,32 +29,31 @@ int isalnum_str(char *string) {
   return 0;
 }
 
-int init_editor(struct Terminal *term) {
+int init_editor() {
   struct termios orig;
-  tcgetattr(term->fd, &orig);
-  term->original_term = &orig;
-  if (term->is_flush)
-  // doesn't works: needs fixing
-    tcflush(term->fd, TCIOFLUSH);
+  tcgetattr(term.fd, &orig);
+  term.original_term = orig;
 
   // For now No case is handeled
   return 0;
 }
 
-int enable_raw_mode(struct Terminal *term) {
+int enable_raw_mode() {
+  struct termios raw;
+  tcgetattr(term.fd, &raw);
 
+  raw.c_lflag &= ~(ECHO | ICANON);
+  term.is_raw =1;
+  tcsetattr(term.fd, TCSAFLUSH,&raw);
   // Work in Progress
 
   return 0;
 }
 
-int disable_raw_mode(struct Terminal *term) {
-  if (term->is_raw) {
-    tcsetattr(term->fd, TCSANOW, term->original_term);
-    term->is_raw = 1;
-  };
-
-  return 0;
+void disable_raw_mode() {
+  if (term.is_raw)
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &term.original_term);
+  term.is_raw = 0;
 }
 
 int main(int argc, char *argv[]) {
@@ -89,9 +92,13 @@ int main(int argc, char *argv[]) {
       file_name = argv[2];
     printf("%s\n", file_name);
   }
-  struct Terminal term = {NULL, 0, STDIN_FILENO, flush};
-  init_editor(&term);
-
-  disable_raw_mode(&term);
+  term.is_flush = flush;
+  atexit(disable_raw_mode);
+  init_editor();
+  enable_raw_mode();
+  char input_char;
+  while(read(STDIN_FILENO, &input_char, 1)==1 && input_char != 'q'){
+    printf("%c (%d)\n", input_char, input_char);
+  }
   return 0;
 }
