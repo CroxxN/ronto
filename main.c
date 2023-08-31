@@ -89,13 +89,14 @@ int enable_raw_mode() {
 // Done
 
 void disable_raw_mode() {
-  if (term.original_term == NULL) printf("NULLED POINTER\n");
+  if (term.original_term == NULL)
+    printf("NULLED POINTER\n");
   if (term.is_raw)
-    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, term.original_term) == -1) 
+    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, term.original_term) == -1)
       perror("Failed to disable raw mode");
+  free(term.original_term);
   term.is_raw = 0;
 }
-
 
 void get_window_size(int *row,int *col){
   struct winsize w;
@@ -110,7 +111,6 @@ void get_window_size(int *row,int *col){
   */
   *row = w.ws_row;
   *col = w.ws_col;
-  printf("%d:%d\n", *row, *col);
 }
 
 
