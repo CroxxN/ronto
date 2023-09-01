@@ -9,6 +9,9 @@
 #include <getopt.h>
 #include<sys/ioctl.h>
 
+#define CTRLQ 17  
+#define CTRLS 19
+
 // Basic Terminal Structure that holds some frequently used values - #GLOBAL
 struct Terminal {
   /*
@@ -113,22 +116,45 @@ void get_window_size(int *row,int *col){
   *col = w.ws_col;
 }
 
+// TODO: Implement save_file functionality
+void save_file(void){
+  return;
+}
 
+// A buffer formatter. It appends messages to be sent to the std output, and
+// flushes them all at once.
+void bf(void){
+  return;
+}
+
+// Carriage Return + Newline
+char *qmessage = "Pressed Control + Q, so quitting\r\n";
+char *smessage = "Pressed Control + S, so saving\r\n";
 
 // Maybe some editor config or other parameter
 void key_up(void){
-  char c, seq[3];
+  char c;
+  // char seq[3];
   int num;
   while ((num = read(term.fd, &c, 1))==0);
   if (num==-1){
     perror("Failed to process keystroke");
     return;
   }
-  while (1){
     switch (c) {
       // DO Something
+      case CTRLQ:
+        write(STDOUT_FILENO, qmessage, strlen(qmessage));
+        exit(0);
+        break;
+
+      case CTRLS:
+        write(STDOUT_FILENO, smessage, strlen(smessage));
+        save_file();
+        break;
+
+      // Handle more cases
       break;
-    }
   }
     
 }
@@ -140,6 +166,10 @@ void handle_key_press(void){
 }
 
 
+void refresh_screen(void){
+  // TODO: Implement refresh_screen functionality
+  return;
+}
 
 // Program Driver
 
@@ -189,16 +219,20 @@ int main(int argc, char *argv[]) {
   atexit(disable_raw_mode);
   init_editor();
   enable_raw_mode();
-  char input_char;
   int row, col;
   get_window_size(&row, &col);
-  while (read(STDIN_FILENO, &input_char, 1) == 1 && input_char != 'q') {
-    if (iscntrl(c)) {
-      printf("%d\r\n", input_char);
-    } else {
+  // while (read(STDIN_FILENO, &input_char, 1) == 1 && input_char != 'q') {
+  //   handle_key_press();
+  //   if (iscntrl(c)) {
+  //     printf("%d\r\n", input_char);
+  //   } else {
 
-      printf("%c (%d)\r\n", input_char, input_char);
-    }
+  //     printf("%c (%d)\r\n", input_char, input_char);
+  //   }
+  // }
+  while (1){
+    handle_key_press();
+    refresh_screen();
   }
   return 0;
 }
