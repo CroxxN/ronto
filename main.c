@@ -7,10 +7,18 @@
 #include <termios.h>
 #include <unistd.h>
 #include <getopt.h>
+#include<assert.h>
 #include<sys/ioctl.h>
 
 #define CTRLQ 17  
 #define CTRLS 19
+
+enum Key{
+  CTRL_Q = 17,
+  CTRL_S = 19,
+  CTRL_C = 3,
+  ESC,
+};
 
 // Basic Terminal Structure that holds some frequently used values - #GLOBAL
 struct Terminal {
@@ -132,36 +140,47 @@ char *qmessage = "Pressed Control + Q, so quitting\r\n";
 char *smessage = "Pressed Control + S, so saving\r\n";
 
 // Maybe some editor config or other parameter
-void key_up(void){
+int key_up(void){
   char c;
   // char seq[3];
   int num;
   while ((num = read(term.fd, &c, 1))==0);
-  if (num==-1){
-    perror("Failed to process keystroke");
-    return;
+  assert(num!=-1);
+  switch (c) {
+  // DO Something
+  case ESC:
+    // Handle Escape Sequence
+    return ESC;
+    break;
+  default:
+    return c;
+    break;
   }
-    switch (c) {
-      // DO Something
-      case CTRLQ:
-        write(STDOUT_FILENO, qmessage, strlen(qmessage));
-        exit(0);
-        break;
-
-      case CTRLS:
-        write(STDOUT_FILENO, smessage, strlen(smessage));
-        save_file();
-        break;
-
-      // Handle more cases
-      break;
-  }
-    
 }
 
 // Maybe some editor config or other parameter
 void handle_key_press(void){
-  key_up();
+  int c = key_up();
+  switch (c) {
+  case CTRL_Q:
+    write(STDOUT_FILENO, qmessage, strlen(qmessage));
+    exit(0);
+    break;
+
+  case CTRL_S:
+    write(STDOUT_FILENO, smessage, strlen(smessage));
+    save_file();
+  case CTRL_C:
+    // TODO: Implement redumentary clipboard support. At least,
+    // copy-the-whole-file feature
+    break;
+  case ESC:
+    // TODO: some vim-like key-bindings? For future updates
+    break;
+  default:
+    // Handle default case i.e add it to the character buffer
+    break;
+  }
   // DO Something
 }
 
