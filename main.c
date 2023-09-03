@@ -20,6 +20,32 @@ enum Key{
   ESC,
 };
 
+// Describes one row of the Editor
+
+typedef struct row{
+  int idx; // Current index of the row
+  int size; // Number of chars, punctuations and tabs in this current row
+  int render_size; // size after adding all the tabs
+  char *content; // content of the row
+  char *render; // content ready for render - with tabs expanded
+}row;
+
+// Editor config & state
+
+typedef struct {
+  int x,y;
+  row *r;
+  int numrow;
+  int coloff;
+  int rowoff;
+  int screenrow;
+  int screencol;
+  bool save;
+  char *file_name;  
+} Editor;
+
+static Editor E;
+
 // Basic Terminal Structure that holds some frequently used values - #GLOBAL
 struct Terminal {
   /*
@@ -48,7 +74,24 @@ int isalnum_str(char *string) {
   return 0;
 }
 
-int init_editor() {
+int get_cursor_position(int *row, int *col){
+  int i=0;
+  char buf[8];
+  if (write(STDOUT_FILENO, "\x1b[6n", 4)!=4) return -1;
+
+  while(i<sizeof(buf)-1){
+    if (read(STDIN_FILENO, buf+i, 1)!=1) return -1;
+    if (buf[i] == 'R') break;
+    i++;
+  }
+  if (buf[0] != ESC || buf[1]!=27) return -1;
+  if (sscanf(buf+2, "%d;%d", row, col)!=2) return -1;
+  // For debug purposes
+  printf("%d;%d\n", *row, *col);
+  return 0;
+}
+
+int init_editor(char* file) {
   // struct termios orig;
 
   // Allocates Memory for the original_term termios struct. Fails if the malloc fails
@@ -62,9 +105,13 @@ int init_editor() {
     printf("Failed Initialization\n");
     return -1;
   }
-  // term.original_term = orig;
-
-  // For now No case is handeled
+  // yes. DRY code for you.
+  E.x = E.y = E.numrow = E.coloff = E.rowoff = E.screenrow =
+  E.screencol = 0;
+  E.save = false;
+  E.file_name = NULL;
+  E.r = NULL;
+  E.file_name = file;
   return 0;
 }
 
@@ -97,7 +144,7 @@ int enable_raw_mode() {
   return 0;
 }
 
-// Done
+// STATUS: complete
 
 void disable_raw_mode() {
   if (term.original_term == NULL)
@@ -109,6 +156,8 @@ void disable_raw_mode() {
   term.is_raw = 0;
 }
 
+
+// STATUS: Incomplete
 void get_window_size(int *row,int *col){
   struct winsize w;
   if (ioctl(term.fd, TIOCGWINSZ, &w) == -1){
@@ -135,6 +184,44 @@ void bf(void){
   return;
 }
 
+int add_row(int pos, char* buf, ssize_t len){
+  E.r = realloc(E.r, sizeof(row)*(E.numrow + 1));
+  // "Error" Handeling
+  assert(E.r != NULL);
+
+  E.r[pos].idx = pos;
+
+  // TODO: May have to revise this logic.
+  // Is it pos > E.numrow or pos >= E.numrow
+  if (pos < E.numrow) {
+    memmove(E.r + pos +1, E.r + pos, sizeof(E.r[0])*(E.numrow-pos)); // Implicit object creation
+    for (int i=pos+1; i<E.numrow; i++) E.r[i].idx++;
+  }
+  E.r[pos].size = len;
+  E.r[pos].content = malloc(len+1); // + 1 for '\0'
+  memcpy(E.r[pos].content, buf, len);
+  E.r[pos].render = NULL;
+  E.r[pos].render_size = 0;
+  ++E.numrow;
+  // TODO: Update the Row now. i.e. expand raw characters to render field
+  return 0;
+}
+
+void insert_key(char c){
+  int rp = E.rowoff+E.x;
+  if (rp >= E.numrow){
+    // TODO: implement this function
+    add_row(rp, "", 0);
+  }
+  if (E.y==E.r[rp].size-1) {
+    E.x++;
+    E.y = 0;
+  }
+  else {
+    E.y++;    
+  }
+}
+
 // Carriage Return + Newline
 char *qmessage = "Pressed Control + Q, so quitting\r\n";
 char *smessage = "Pressed Control + S, so saving\r\n";
@@ -148,9 +235,8 @@ int key_up(void){
   assert(num!=-1);
   switch (c) {
   // DO Something
-  case ESC:
+  // case ESC:
     // Handle Escape Sequence
-    return ESC;
     break;
   default:
     return c;
@@ -158,8 +244,8 @@ int key_up(void){
   }
 }
 
-// Maybe some editor config or other parameter
-void handle_key_press(void){
+// FEAT: rudimentary functionality complete
+void handle_key_press(){
   int c = key_up();
   switch (c) {
   case CTRL_Q:
@@ -178,10 +264,10 @@ void handle_key_press(void){
     // TODO: some vim-like key-bindings? For future updates
     break;
   default:
+    insert_key(c);
     // Handle default case i.e add it to the character buffer
     break;
   }
-  // DO Something
 }
 
 
@@ -200,7 +286,7 @@ int main(int argc, char *argv[]) {
   char c;
   bool file = 0;
   bool flush = 0;
-  char *file_name;
+  char *file_name = NULL;
   extern char *optarg;
   extern int optind;
   while ((c = getopt(argc, argv, "nf:")) != -1) {
@@ -236,19 +322,12 @@ int main(int argc, char *argv[]) {
 
 
   atexit(disable_raw_mode);
-  init_editor();
+
+
+  init_editor(file_name);
   enable_raw_mode();
   int row, col;
   get_window_size(&row, &col);
-  // while (read(STDIN_FILENO, &input_char, 1) == 1 && input_char != 'q') {
-  //   handle_key_press();
-  //   if (iscntrl(c)) {
-  //     printf("%d\r\n", input_char);
-  //   } else {
-
-  //     printf("%c (%d)\r\n", input_char, input_char);
-  //   }
-  // }
   while (1){
     handle_key_press();
     refresh_screen();
