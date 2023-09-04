@@ -14,9 +14,11 @@
 #define CTRLS 19
 
 enum Key{
+  // In decimal, NOT Octal
   CTRL_Q = 17,
   CTRL_S = 19,
   CTRL_C = 3,
+  TAB = 9,
   ESC,
 };
 
@@ -270,9 +272,13 @@ void handle_key_press(){
   }
 }
 
+void expand_rows(void){
+  // TODO: Implement this
+}
 
 void refresh_screen(void){
   // TODO: Implement refresh_screen functionality
+  expand_rows();
   return;
 }
 
