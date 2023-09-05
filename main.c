@@ -9,9 +9,17 @@
 #include <getopt.h>
 #include<assert.h>
 #include<sys/ioctl.h>
+#include<stdarg.h>
 
 #define CTRLQ 17  
 #define CTRLS 19
+
+#define dbg(s, ...)\
+  va_list v;\
+  va_start(va_list)\
+  char *formatted; sprintf(formatted, (char *)s);\
+  write(STDOUT_FILENO, s, strlen(s));\
+
 
 enum Key{
   // In decimal, NOT Octal
@@ -272,13 +280,26 @@ void handle_key_press(){
   }
 }
 
-void expand_rows(void){
+int expand_rows(void){
+  for (int i=0; i<E.numrow; i++){
+    E.r[i].render = malloc(E.r[i].size+1);
+    assert(E.r[i].render!=NULL);
+    memcpy(E.r[i].render, E.r[i].content, E.r[i].size);
+  }
+  return 0;
   // TODO: Implement this
 }
 
 void refresh_screen(void){
   // TODO: Implement refresh_screen functionality
-  expand_rows();
+  if (expand_rows() == 0){
+    va_list v;
+    sprintf(formatted, (char *)"trying to draw %d");
+    write(1, "trying to draw %d", strlen("trying to draw %d"));
+    ;
+    write(STDOUT_FILENO, E.r[0].render, E.r[0].size);
+  }
+
   return;
 }
 
