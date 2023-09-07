@@ -1,27 +1,23 @@
 #include <asm-generic/ioctls.h>
+#include <assert.h>
 #include <ctype.h>
+#include <getopt.h>
+#include <stdarg.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
 #include <termios.h>
 #include <unistd.h>
-#include <getopt.h>
-#include<assert.h>
-#include<sys/ioctl.h>
-#include<stdarg.h>
 
-#define CTRLQ 17  
+#define CTRLQ 17
 #define CTRLS 19
 
-#define dbg(s, ...)\
-  va_list v;\
-  va_start(va_list)\
-  char *formatted; sprintf(formatted, (char *)s);\
-  write(STDOUT_FILENO, s, strlen(s));\
+#define dbg(s, ...)va_list v; vdprintf(STDOUT_FILENO, s, v)
 
-
-enum Key{
+enum Key {
   // In decimal, NOT Octal
   CTRL_Q = 17,
   CTRL_S = 19,
@@ -32,18 +28,19 @@ enum Key{
 
 // Describes one row of the Editor
 
-typedef struct row{
-  int idx; // Current index of the row
-  int size; // Number of chars, punctuations and tabs in this current row
+typedef struct row {
+  int idx;         // Current index of the row
+  int size;        // Number of chars, punctuations and tabs in this current row
   int render_size; // size after adding all the tabs
-  char *content; // content of the row
-  char *render; // content ready for render - with tabs expanded
-}row;
+  char *content;   // content of the row
+  char *render;    // content ready for render - with tabs expanded
+} row;
 
 // Editor config & state
 
-typedef struct {
-  int x,y;
+struct Editor{
+  int x;
+  int y;
   row *r;
   int numrow;
   int coloff;
@@ -51,16 +48,18 @@ typedef struct {
   int screenrow;
   int screencol;
   bool save;
-  char *file_name;  
-} Editor;
+  char *file_name;
+};
 
-static Editor E;
+static struct Editor E;
+
+
 
 // Basic Terminal Structure that holds some frequently used values - #GLOBAL
 struct Terminal {
   /*
-  The struct pointer definition is completely useless(especially because it's 
-  global variable anyway). 
+  The struct pointer definition is completely useless(especially because it's
+  global variable anyway).
   One could easily use a non-pointer version. I just wanted to
   see & learn, so used a pointer version.
   Pitfalls here I come.
@@ -84,40 +83,44 @@ int isalnum_str(char *string) {
   return 0;
 }
 
-int get_cursor_position(int *row, int *col){
-  int i=0;
+int get_cursor_position(int *row, int *col) {
+  int i = 0;
   char buf[8];
-  if (write(STDOUT_FILENO, "\x1b[6n", 4)!=4) return -1;
+  if (write(STDOUT_FILENO, "\x1b[6n", 4) != 4)
+    return -1;
 
-  while(i<sizeof(buf)-1){
-    if (read(STDIN_FILENO, buf+i, 1)!=1) return -1;
-    if (buf[i] == 'R') break;
+  while (i < sizeof(buf) - 1) {
+    if (read(STDIN_FILENO, buf + i, 1) != 1)
+      return -1;
+    if (buf[i] == 'R')
+      break;
     i++;
   }
-  if (buf[0] != ESC || buf[1]!=27) return -1;
-  if (sscanf(buf+2, "%d;%d", row, col)!=2) return -1;
+  if (buf[0] != ESC || buf[1] != 27)
+    return -1;
+  if (sscanf(buf + 2, "%d;%d", row, col) != 2)
+    return -1;
   // For debug purposes
-  printf("%d;%d\n", *row, *col);
   return 0;
 }
 
-int init_editor(char* file) {
+int init_editor(char *file) {
   // struct termios orig;
 
-  // Allocates Memory for the original_term termios struct. Fails if the malloc fails
-  term.original_term = (struct termios*) malloc(sizeof(struct termios));
-  if (term.original_term == NULL){
+  // Allocates Memory for the original_term termios struct. Fails if the malloc
+  // fails
+  term.original_term = (struct termios *)malloc(sizeof(struct termios));
+  if (term.original_term == NULL) {
     perror("Failed to initialize original stuct");
     return -1;
   }
   tcgetattr(term.fd, term.original_term);
-  if (term.original_term == NULL){
+  if (term.original_term == NULL) {
     printf("Failed Initialization\n");
     return -1;
   }
   // yes. DRY code for you.
-  E.x = E.y = E.numrow = E.coloff = E.rowoff = E.screenrow =
-  E.screencol = 0;
+  E.x = E.y = E.numrow = E.coloff = E.rowoff = E.screenrow = E.screencol = 0;
   E.save = false;
   E.file_name = NULL;
   E.r = NULL;
@@ -148,7 +151,7 @@ int enable_raw_mode() {
   raw.c_cflag |= (CS8); // No & mask, no bit flipping
 
   term.is_raw = 1;
-  if (tcsetattr(term.fd, TCSAFLUSH, &raw) == -1) 
+  if (tcsetattr(term.fd, TCSAFLUSH, &raw) == -1)
     perror("Failed to set terminal to raw mode");
 
   return 0;
@@ -166,11 +169,10 @@ void disable_raw_mode() {
   term.is_raw = 0;
 }
 
-
 // STATUS: Incomplete
-void get_window_size(int *row,int *col){
+void get_window_size(int *row, int *col) {
   struct winsize w;
-  if (ioctl(term.fd, TIOCGWINSZ, &w) == -1){
+  if (ioctl(term.fd, TIOCGWINSZ, &w) == -1) {
     // Do SOMETHING
     // Handle when ioctl fails
   }
@@ -184,18 +186,14 @@ void get_window_size(int *row,int *col){
 }
 
 // TODO: Implement save_file functionality
-void save_file(void){
-  return;
-}
+void save_file(void) { return; }
 
 // A buffer formatter. It appends messages to be sent to the std output, and
 // flushes them all at once.
-void bf(void){
-  return;
-}
+void bf(void) { return; }
 
-int add_row(int pos, char* buf, ssize_t len){
-  E.r = realloc(E.r, sizeof(row)*(E.numrow + 1));
+int add_row(int pos, char *buf, ssize_t len) {
+  E.r = realloc(E.r, sizeof(row) * (E.numrow + 1));
   // "Error" Handeling
   assert(E.r != NULL);
 
@@ -204,11 +202,13 @@ int add_row(int pos, char* buf, ssize_t len){
   // TODO: May have to revise this logic.
   // Is it pos > E.numrow or pos >= E.numrow
   if (pos < E.numrow) {
-    memmove(E.r + pos +1, E.r + pos, sizeof(E.r[0])*(E.numrow-pos)); // Implicit object creation
-    for (int i=pos+1; i<E.numrow; i++) E.r[i].idx++;
+    memmove(E.r + pos + 1, E.r + pos,
+            sizeof(E.r[0]) * (E.numrow - pos)); // Implicit object creation
+    for (int i = pos + 1; i < E.numrow; i++)
+      E.r[i].idx++;
   }
   E.r[pos].size = len;
-  E.r[pos].content = malloc(len+1); // + 1 for '\0'
+  E.r[pos].content = malloc(len + 1); // + 1 for '\0'
   memcpy(E.r[pos].content, buf, len);
   E.r[pos].render = NULL;
   E.r[pos].render_size = 0;
@@ -217,19 +217,33 @@ int add_row(int pos, char* buf, ssize_t len){
   return 0;
 }
 
-void insert_key(char c){
-  int rp = E.rowoff+E.x;
-  if (rp >= E.numrow){
+void add_char_at(char c, int at, int rowpos){
+  if (!E.r[rowpos].content){
+    E.r[rowpos].content = malloc(100);
+  }
+  // 1+ Hours of Bug
+  E.r[rowpos].content = realloc(E.r[rowpos].content, at+1);
+  E.r[rowpos].content[at] = c;
+  // Add null char at the end
+  E.r[rowpos].content[at+1] = '\0';
+  E.r[rowpos].size++;
+}
+
+void insert_key(char c) {
+  int rp = E.rowoff + E.y;
+  int cp = E.coloff + E.x;
+  if (rp >= E.numrow) {
     // TODO: implement this function
     add_row(rp, "", 0);
   }
-  if (E.y==E.r[rp].size-1) {
-    E.x++;
-    E.y = 0;
-  }
-  else {
-    E.y++;    
-  }
+  add_char_at(c, cp, rp);
+  E.x++;
+  // if (E.y == E.r[rp].size - 1) {
+  //   E.x++;
+  //   E.y = 0;
+  // } else {
+  //   E.y++;
+  // }
 }
 
 // Carriage Return + Newline
@@ -237,15 +251,16 @@ char *qmessage = "Pressed Control + Q, so quitting\r\n";
 char *smessage = "Pressed Control + S, so saving\r\n";
 
 // Maybe some editor config or other parameter
-int key_up(void){
+int key_up(void) {
   char c;
   // char seq[3];
   int num;
-  while ((num = read(term.fd, &c, 1))==0);
-  assert(num!=-1);
+  while ((num = read(term.fd, &c, 1)) == 0)
+    ;
+  assert(num != -1);
   switch (c) {
-  // DO Something
-  // case ESC:
+    // DO Something
+    // case ESC:
     // Handle Escape Sequence
     break;
   default:
@@ -255,7 +270,7 @@ int key_up(void){
 }
 
 // FEAT: rudimentary functionality complete
-void handle_key_press(){
+void handle_key_press() {
   int c = key_up();
   switch (c) {
   case CTRL_Q:
@@ -280,23 +295,19 @@ void handle_key_press(){
   }
 }
 
-int expand_rows(void){
-  for (int i=0; i<E.numrow; i++){
-    E.r[i].render = malloc(E.r[i].size+1);
-    assert(E.r[i].render!=NULL);
-    memcpy(E.r[i].render, E.r[i].content, E.r[i].size);
+int expand_rows(void) {
+  for (int i = 0; i < E.numrow; i++) {
+    E.r[i].render = malloc(E.r[i].size + 1);
+    assert(E.r[i].render != NULL);
+    memcpy(E.r[i].render, E.r[i].content, 10);
   }
   return 0;
   // TODO: Implement this
 }
 
-void refresh_screen(void){
+void refresh_screen(void) {
   // TODO: Implement refresh_screen functionality
-  if (expand_rows() == 0){
-    va_list v;
-    sprintf(formatted, (char *)"trying to draw %d");
-    write(1, "trying to draw %d", strlen("trying to draw %d"));
-    ;
+  if (expand_rows() == 0) {
     write(STDOUT_FILENO, E.r[0].render, E.r[0].size);
   }
 
@@ -328,12 +339,12 @@ int main(int argc, char *argv[]) {
       break;
     case ':':
       fprintf(stderr, "File Name required with the -f Parameter");
-      break;
+      return -1;
 
     case '?':
       fprintf(stderr,
               "Unrecognized Option. Use --help to display allowed options");
-      break;
+      return -1;
     }
   }
   if (file) {
@@ -343,19 +354,15 @@ int main(int argc, char *argv[]) {
   }
   if (flush)
     // `\x1b[2J`& `\x1b[H` are different VT100 escape sequences.
-  // `\x1b[2J` is for clearing the sreen
-  // & `\x1b[H` puts the cursor at the top-left.
+    // `\x1b[2J` is for clearing the sreen
+    // & `\x1b[H` puts the cursor at the top-left.
     write(STDIN_FILENO, "\x1b[2J\x1b[H", 7);
-
 
   atexit(disable_raw_mode);
 
-
   init_editor(file_name);
   enable_raw_mode();
-  int row, col;
-  get_window_size(&row, &col);
-  while (1){
+  while (1) {
     handle_key_press();
     refresh_screen();
   }
