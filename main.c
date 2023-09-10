@@ -1,3 +1,8 @@
+// Define a not-too-ancient gnu version.
+// Stop implicit-function-declaration when using --std=c99
+#define _POSIX_C_SOURCE 200809L
+
+
 #include <asm-generic/ioctls.h>
 #include <assert.h>
 #include <ctype.h>
@@ -12,10 +17,17 @@
 #include <termios.h>
 #include <unistd.h>
 
+
+
 #define CTRLQ 17
 #define CTRLS 19
 
-#define dbg(s, ...)va_list v; vdprintf(STDOUT_FILENO, s, v)
+void dbg(char *s, ...){
+  va_list v;
+  va_start(v, s);
+  vdprintf(STDOUT_FILENO, s, v);
+  va_end(v);
+}
 
 enum Key {
   // In decimal, NOT Octal
@@ -123,7 +135,12 @@ int init_editor(char *file) {
   E.x = E.y = E.numrow = E.coloff = E.rowoff = E.screenrow = E.screencol = 0;
   E.save = false;
   E.file_name = NULL;
-  E.r = NULL;
+  E.r = (row *)malloc(sizeof(row));
+  E.r->content = NULL;
+  E.r->render = NULL;
+  E.r->size = 0;
+  E.r->render_size = 0;
+  E.r->idx = 0;
   E.file_name = file;
   return 0;
 }
@@ -167,6 +184,8 @@ void disable_raw_mode() {
       perror("Failed to disable raw mode");
   free(term.original_term);
   term.is_raw = 0;
+  write(STDOUT_FILENO, "\x1b[H", 3);
+  write(STDOUT_FILENO, "\x1b[2J", strlen("\x1b[2J"));
 }
 
 // STATUS: Incomplete
@@ -192,52 +211,62 @@ void save_file(void) { return; }
 // flushes them all at once.
 void bf(void) { return; }
 
-int add_row(int pos, char *buf, ssize_t len) {
-  E.r = realloc(E.r, sizeof(row) * (E.numrow + 1));
-  // "Error" Handeling
-  assert(E.r != NULL);
+// int add_row(int pos, char *buf, ssize_t len) {
+//   if (E.r.size)
+//     E.r = (row *)malloc(sizeof(row));
+//   else
+//     E.r = realloc(E.r, sizeof(row) * (E.numrow + 1));
+//   // "Error" Handeling
+//   assert(E.r != NULL);
 
-  E.r[pos].idx = pos;
+//   E.r[pos].idx = pos;
 
-  // TODO: May have to revise this logic.
-  // Is it pos > E.numrow or pos >= E.numrow
-  if (pos < E.numrow) {
-    memmove(E.r + pos + 1, E.r + pos,
-            sizeof(E.r[0]) * (E.numrow - pos)); // Implicit object creation
-    for (int i = pos + 1; i < E.numrow; i++)
-      E.r[i].idx++;
-  }
-  E.r[pos].size = len;
-  E.r[pos].content = malloc(len + 1); // + 1 for '\0'
-  memcpy(E.r[pos].content, buf, len);
-  E.r[pos].render = NULL;
-  E.r[pos].render_size = 0;
-  ++E.numrow;
-  // TODO: Update the Row now. i.e. expand raw characters to render field
-  return 0;
-}
+//   // TODO: May have to revise this logic.
+//   // Is it pos > E.numrow or pos >= E.numrow
+//   // if (pos < E.numrow) {
+//   //   memmove(E.r + pos + 1, E.r + pos,
+//   //           sizeof(E.r[0]) * (E.numrow - pos)); // Implicit object creation
+//   //   for (int i = pos + 1; i < E.numrow; i++)
+//   //     E.r[i].idx++;
+//   // }
+//   E.r[pos].size = len;
+//   E.r[pos].content = malloc(len + 1); // + 1 for '\0'
+//   memcpy(E.r[pos].content, buf, len);
+//   E.r[pos].render = NULL;
+//   E.r[pos].render_size = 0;
+//   ++E.numrow;
+//   // TODO: Update the Row now. i.e. expand raw characters to render field
+//   return 0;
+// }
 
-void add_char_at(char c, int at, int rowpos){
-  if (!E.r[rowpos].content){
-    E.r[rowpos].content = malloc(100);
+void add_char_at(char c, int at){
+  if (!E.r->content){
+    // dbg("yes");
+    E.r->content = malloc(sizeof(char) +1);
+    E.r->size++;
+  }else{
+    if (E.r->size <= sizeof(E.r->content)){
+      // dbg("%d;%d" ,E.r->size, sizeof(E.r->content));
+      E.r->size = sizeof(E.r->content)+1;
+    }
+    E.r->content = realloc(E.r->content,E.r->size + 1);
   }
   // 1+ Hours of Bug
-  E.r[rowpos].content = realloc(E.r[rowpos].content, at+1);
-  E.r[rowpos].content[at] = c;
+  E.r->content[at] = c;
   // Add null char at the end
-  E.r[rowpos].content[at+1] = '\0';
-  E.r[rowpos].size++;
+  // E.r->content[at+1] = '\0';
+  E.r->idx++;
 }
 
 void insert_key(char c) {
-  int rp = E.rowoff + E.y;
-  int cp = E.coloff + E.x;
-  if (rp >= E.numrow) {
-    // TODO: implement this function
-    add_row(rp, "", 0);
-  }
-  add_char_at(c, cp, rp);
-  E.x++;
+  // int rp = E.rowoff + E.y;
+  // int cp = E.r->idx;
+  // if (rp >= E.numrow) {
+  //   // TODO: implement this function
+  //   add_row(rp, "", 0);
+  // }
+  add_char_at(c, E.r->idx);
+  E.r->size++;
   // if (E.y == E.r[rp].size - 1) {
   //   E.x++;
   //   E.y = 0;
@@ -296,21 +325,32 @@ void handle_key_press() {
 }
 
 int expand_rows(void) {
-  for (int i = 0; i < E.numrow; i++) {
-    E.r[i].render = malloc(E.r[i].size + 1);
-    assert(E.r[i].render != NULL);
-    memcpy(E.r[i].render, E.r[i].content, 10);
+  // for (int i = 0; i < E.numrow; i++) {
+  // if (!E.r->content){
+  //   return -1;
+  // }
+  if (E.r->content == NULL){
+    return -1;
   }
+  E.r->render_size = E.r->size;
+  E.r->render = (char *)malloc(sizeof(char) * E.r->render_size);
+  memcpy(E.r->render, E.r->content, E.r->size);
+  // E.r->render[E.r->render_size] = '\0';
+    write(STDOUT_FILENO, "\x1b[K", strlen("\x1b[K"));
+    write(STDOUT_FILENO, "\x1b[H", strlen("\x1b[H"));
+    write(STDOUT_FILENO, E.r->render, E.r->render_size);
+  // }
+  free(E.r->render);
   return 0;
   // TODO: Implement this
 }
 
 void refresh_screen(void) {
   // TODO: Implement refresh_screen functionality
-  if (expand_rows() == 0) {
-    write(STDOUT_FILENO, E.r[0].render, E.r[0].size);
+  if (expand_rows() != 0) {
+    // exit(1);
   }
-
+  // dbg("%d\n", E.r[0].size);
   return;
 }
 
@@ -362,9 +402,13 @@ int main(int argc, char *argv[]) {
 
   init_editor(file_name);
   enable_raw_mode();
+  // Clear Screen
+  write(STDOUT_FILENO, "\x1b[2J", strlen("\x1b[2J"));
+  // Move the cursor to home position
+  write(STDOUT_FILENO, "\x1b[H", strlen("\x1b[H"));
   while (1) {
-    handle_key_press();
     refresh_screen();
+    handle_key_press();
   }
   return 0;
 }
