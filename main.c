@@ -1,3 +1,6 @@
+#define _POSIX_C_SOURCE 200809L
+
+
 #include <asm-generic/ioctls.h>
 #include <assert.h>
 #include <ctype.h>
@@ -15,7 +18,12 @@
 #define CTRLQ 17
 #define CTRLS 19
 
-#define dbg(s, ...)va_list v; vdprintf(STDOUT_FILENO, s, v)
+void dbg(char *s, ...){
+  va_list v;
+  va_start(v, s);
+  vdprintf(STDOUT_FILENO, s, v);
+  va_end(v);
+}
 
 enum Key {
   // In decimal, NOT Octal
@@ -166,6 +174,7 @@ void disable_raw_mode() {
     if (tcsetattr(STDIN_FILENO, TCSAFLUSH, term.original_term) == -1)
       perror("Failed to disable raw mode");
   free(term.original_term);
+  write(STDOUT_FILENO, "\x1b[H\x1b[2J\x1b[K", 7);
   term.is_raw = 0;
 }
 
@@ -202,6 +211,7 @@ int add_row(int pos, char *buf, ssize_t len) {
   // TODO: May have to revise this logic.
   // Is it pos > E.numrow or pos >= E.numrow
   if (pos < E.numrow) {
+    dbg("Run");
     memmove(E.r + pos + 1, E.r + pos,
             sizeof(E.r[0]) * (E.numrow - pos)); // Implicit object creation
     for (int i = pos + 1; i < E.numrow; i++)
@@ -212,20 +222,24 @@ int add_row(int pos, char *buf, ssize_t len) {
   memcpy(E.r[pos].content, buf, len);
   E.r[pos].render = NULL;
   E.r[pos].render_size = 0;
-  ++E.numrow;
+  E.numrow++;
   // TODO: Update the Row now. i.e. expand raw characters to render field
   return 0;
 }
 
 void add_char_at(char c, int at, int rowpos){
   if (!E.r[rowpos].content){
-    E.r[rowpos].content = malloc(100);
+    E.r[rowpos].content = malloc(1);
+    assert(E.r[rowpos].content!=NULL);
+    E.r[rowpos].size++;
+  }
+  if (sizeof(E.r[rowpos].content)>at+1){
+    E.r[rowpos].size = sizeof(E.r[rowpos].content) + 1;
   }
   // 1+ Hours of Bug
-  E.r[rowpos].content = realloc(E.r[rowpos].content, at+1);
+  E.r[rowpos].content = realloc(E.r[rowpos].content, E.r[rowpos].size+1);
   E.r[rowpos].content[at] = c;
   // Add null char at the end
-  E.r[rowpos].content[at+1] = '\0';
   E.r[rowpos].size++;
 }
 
@@ -247,8 +261,8 @@ void insert_key(char c) {
 }
 
 // Carriage Return + Newline
-char *qmessage = "Pressed Control + Q, so quitting\r\n";
-char *smessage = "Pressed Control + S, so saving\r\n";
+char *qmessage = "\r\nPressed Control + Q, so quitting\r\n";
+char *smessage = "\r\nPressed Control + S, so saving\r\n";
 
 // Maybe some editor config or other parameter
 int key_up(void) {
@@ -297,18 +311,21 @@ void handle_key_press() {
 
 int expand_rows(void) {
   for (int i = 0; i < E.numrow; i++) {
+    if (E.r[i].content==NULL) return -1;
     E.r[i].render = malloc(E.r[i].size + 1);
     assert(E.r[i].render != NULL);
-    memcpy(E.r[i].render, E.r[i].content, 10);
+    memcpy(E.r[i].render, E.r[i].content, E.r[i].size);
+    write(STDOUT_FILENO, E.r[i].render, E.r[i].size);
+    free(E.r[i].render);
   }
   return 0;
   // TODO: Implement this
 }
 
 void refresh_screen(void) {
+  write(STDOUT_FILENO, "\x1b[H\x1b[K", 6);
   // TODO: Implement refresh_screen functionality
   if (expand_rows() == 0) {
-    write(STDOUT_FILENO, E.r[0].render, E.r[0].size);
   }
 
   return;
@@ -362,6 +379,7 @@ int main(int argc, char *argv[]) {
 
   init_editor(file_name);
   enable_raw_mode();
+  write(STDOUT_FILENO, "\x1b[H\x1b[2J\x1b[K", 7);
   while (1) {
     handle_key_press();
     refresh_screen();
