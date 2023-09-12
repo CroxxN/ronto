@@ -211,7 +211,7 @@ int add_row(int pos, char *buf, ssize_t len) {
   // TODO: May have to revise this logic.
   // Is it pos > E.numrow or pos >= E.numrow
   if (pos < E.numrow) {
-    dbg("Run");
+    // dbg("Run");
     memmove(E.r + pos + 1, E.r + pos,
             sizeof(E.r[0]) * (E.numrow - pos)); // Implicit object creation
     for (int i = pos + 1; i < E.numrow; i++)
@@ -231,11 +231,10 @@ void add_char_at(char c, int at, int rowpos){
   if (!E.r[rowpos].content){
     E.r[rowpos].content = malloc(1);
     assert(E.r[rowpos].content!=NULL);
-    E.r[rowpos].size++;
   }
-  if (sizeof(E.r[rowpos].content)>at+1){
-    E.r[rowpos].size = sizeof(E.r[rowpos].content) + 1;
-  }
+  // if (sizeof(E.r[rowpos].content)>at+1){
+  //   E.r[rowpos].size = sizeof(E.r[rowpos].content) + 1;
+  // }
   // 1+ Hours of Bug
   E.r[rowpos].content = realloc(E.r[rowpos].content, E.r[rowpos].size+1);
   E.r[rowpos].content[at] = c;
