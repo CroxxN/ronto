@@ -137,9 +137,6 @@ int init_editor(char *file) {
   E.file_name = NULL;
   E.r = NULL;
   E.file_name = file;
-  // write(STDOUT_FILENO, "\0337", 2);
-  // write(STDOUT_FILENO, "\x1b[?47h", 6);
-  // write(STDOUT_FILENO, "\x1b[H\x1b[2J", 7);
   return 0;
 }
 
@@ -153,8 +150,15 @@ void disable_raw_mode() {
       perror("Failed to disable raw mode");
   free(term.original_term);
   free(E.r);
+  // Clear the alternate screen
   write(STDOUT_FILENO, "\x1b[H\x1b[2J", 7);
-  printf("Exited Successfully from Ronto!\n");
+  // Switch back to normal screen -- NOT Specifically VT100, but should work on most modern 
+  // terminals and emulators. If the terminal is not capable of such feature, just discard
+  // the escape sequence.
+  write(STDOUT_FILENO, "\x1b[?1049l", strlen("\x1b[?1049l"));
+
+  // `\x1b[1;32m` is just escape sequence for printing bold, green colored text
+  printf("\n\x1b[1;32mExited Successfully from Ronto!\x1b[0m\n");
   term.is_raw = 0;
 }
 
