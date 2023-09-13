@@ -1,3 +1,6 @@
+// We use the `vdprintf` function, which is a GNU Extension, and 
+// were described in POSIX.1-2008, so we define the POSIX C source
+// to avoid `gcc` yelling about implicit functions
 #define _POSIX_C_SOURCE 200809L
 
 
@@ -7,16 +10,17 @@
 #include <getopt.h>
 #include <stdarg.h>
 #include <stdbool.h>
-#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <termios.h>
 #include <unistd.h>
+#include <stddef.h>
 
 #define CTRLQ 17
 #define CTRLS 19
+#define BACKSPACE 127
 
 void dbg(char *s, ...){
   va_list v;
@@ -133,7 +137,25 @@ int init_editor(char *file) {
   E.file_name = NULL;
   E.r = NULL;
   E.file_name = file;
+  // write(STDOUT_FILENO, "\0337", 2);
+  // write(STDOUT_FILENO, "\x1b[?47h", 6);
+  // write(STDOUT_FILENO, "\x1b[H\x1b[2J", 7);
   return 0;
+}
+
+// STATUS: complete
+
+void disable_raw_mode() {
+  if (term.original_term == NULL)
+    printf("NULLED POINTER\n");
+  if (term.is_raw)
+    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, term.original_term) == -1)
+      perror("Failed to disable raw mode");
+  free(term.original_term);
+  free(E.r);
+  write(STDOUT_FILENO, "\x1b[H\x1b[2J", 7);
+  printf("Exited Successfully from Ronto!\n");
+  term.is_raw = 0;
 }
 
 // Done
@@ -165,18 +187,6 @@ int enable_raw_mode() {
   return 0;
 }
 
-// STATUS: complete
-
-void disable_raw_mode() {
-  if (term.original_term == NULL)
-    printf("NULLED POINTER\n");
-  if (term.is_raw)
-    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, term.original_term) == -1)
-      perror("Failed to disable raw mode");
-  free(term.original_term);
-  write(STDOUT_FILENO, "\x1b[H\x1b[2J\x1b[K", 7);
-  term.is_raw = 0;
-}
 
 // STATUS: Incomplete
 void get_window_size(int *row, int *col) {
@@ -235,7 +245,7 @@ void add_char_at(char c, int at, int rowpos){
   // if (sizeof(E.r[rowpos].content)>at+1){
   //   E.r[rowpos].size = sizeof(E.r[rowpos].content) + 1;
   // }
-  // 1+ Hours of Bug
+  // 1+ Hours of BUG.
   E.r[rowpos].content = realloc(E.r[rowpos].content, E.r[rowpos].size+1);
   E.r[rowpos].content[at] = c;
   // Add null char at the end
@@ -259,6 +269,21 @@ void insert_key(char c) {
   // }
 }
 
+void delete_at(int rpos, int at){
+  // E.r[rpos].content[at] = '\0';
+  E.r[rpos].size--;
+  E.x--;
+}
+
+// TODO: Fix bug
+void delete(){
+  // No Op if there is no character to remove
+  if (E.x<1) return;
+  int row = E.rowoff + E.y;
+  int at = E.coloff + E.x;
+  delete_at(row, at);
+}
+
 // Carriage Return + Newline
 char *qmessage = "\r\nPressed Control + Q, so quitting\r\n";
 char *smessage = "\r\nPressed Control + S, so saving\r\n";
@@ -273,10 +298,12 @@ int key_up(void) {
   assert(num != -1);
   switch (c) {
     // DO Something
-    // case ESC:
+    case ESC:
     // Handle Escape Sequence
+    return 0;
     break;
   default:
+    // dbg("Pressed: %d", c);
     return c;
     break;
   }
@@ -301,6 +328,9 @@ void handle_key_press() {
   case ESC:
     // TODO: some vim-like key-bindings? For future updates
     break;
+  case BACKSPACE:
+    delete();
+    break;
   default:
     insert_key(c);
     // Handle default case i.e add it to the character buffer
@@ -308,25 +338,24 @@ void handle_key_press() {
   }
 }
 
-int expand_rows(void) {
+// TODO: Expand tabs
+void expand_rows(void) {
   for (int i = 0; i < E.numrow; i++) {
-    if (E.r[i].content==NULL) return -1;
+    if (E.r[i].content==NULL) return;
     E.r[i].render = malloc(E.r[i].size + 1);
     assert(E.r[i].render != NULL);
     memcpy(E.r[i].render, E.r[i].content, E.r[i].size);
     write(STDOUT_FILENO, E.r[i].render, E.r[i].size);
     free(E.r[i].render);
   }
-  return 0;
-  // TODO: Implement this
 }
 
 void refresh_screen(void) {
-  write(STDOUT_FILENO, "\x1b[H\x1b[K", 6);
-  // TODO: Implement refresh_screen functionality
-  if (expand_rows() == 0) {
-  }
-
+  // As we move cursor to home each time during refresh, we just erase from current line i.e. the first, to the last line
+  // TODO: Modify for view buffers
+  char *write_buf = "\x1b[H\x1b[J";
+  write(STDOUT_FILENO, write_buf, strlen(write_buf));
+  expand_rows();
   return;
 }
 
@@ -369,16 +398,13 @@ int main(int argc, char *argv[]) {
     printf("%s\n", file_name);
   }
   if (flush)
-    // `\x1b[2J`& `\x1b[H` are different VT100 escape sequences.
-    // `\x1b[2J` is for clearing the sreen
-    // & `\x1b[H` puts the cursor at the top-left.
-    write(STDIN_FILENO, "\x1b[2J\x1b[H", 7);
+    // Goto alternate screen buffer
+    write(STDOUT_FILENO,"\x1b[?1049h" ,strlen("\x1b[?1049h"));
 
   atexit(disable_raw_mode);
 
   init_editor(file_name);
   enable_raw_mode();
-  write(STDOUT_FILENO, "\x1b[H\x1b[2J\x1b[K", 7);
   while (1) {
     handle_key_press();
     refresh_screen();
