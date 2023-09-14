@@ -21,6 +21,7 @@
 #define CTRLQ 17
 #define CTRLS 19
 #define BACKSPACE 127
+#define ENTER 10
 
 void dbg(char *s, ...){
   va_list v;
@@ -29,13 +30,15 @@ void dbg(char *s, ...){
   va_end(v);
 }
 
-enum Key {
+enum Key{
   // In decimal, NOT Octal
   CTRL_Q = 17,
   CTRL_S = 19,
   CTRL_C = 3,
   TAB = 9,
-  ESC,
+  // BACKSPACE = 127,
+  // ENTER = 10,
+  ESC = 0,
 };
 
 // Describes one row of the Editor
@@ -262,6 +265,7 @@ void insert_key(char c) {
   if (rp >= E.numrow) {
     // TODO: implement this function
     add_row(rp, "", 0);
+    // E.y++;
   }
   add_char_at(c, cp, rp);
   E.x++;
@@ -277,6 +281,8 @@ void delete_at(int rpos, int at){
   // E.r[rpos].content[at] = '\0';
   E.r[rpos].size--;
   E.x--;
+  // TODO: Don't call realloc so often?
+  E.r[rpos].content = realloc(E.r[rpos].content, E.r[rpos].size);
 }
 
 // TODO: Fix bug
@@ -286,6 +292,15 @@ void delete(){
   int row = E.rowoff + E.y;
   int at = E.coloff + E.x;
   delete_at(row, at);
+}
+
+// TODO: Fix bugs
+void enter_key(){
+  int rp = E.rowoff + E.y;
+  add_row(rp+1, "", 0);
+  E.y++;
+  // write(STDOUT_FILENO, "Pressed Enter", strlen("Pressed Enter"));
+  return;
 }
 
 // Carriage Return + Newline
@@ -335,6 +350,9 @@ void handle_key_press() {
   case BACKSPACE:
     delete();
     break;
+  // case ENTER:
+  //   enter_key();
+  //   break;
   default:
     insert_key(c);
     // Handle default case i.e add it to the character buffer
@@ -346,10 +364,15 @@ void handle_key_press() {
 void expand_rows(void) {
   for (int i = 0; i < E.numrow; i++) {
     if (E.r[i].content==NULL) return;
+    // TODO: Revise this logic
+    // if (sizeof(E.r[i].content)<E.r[i].size+2){
+    //   E.r[i].content = realloc(E.r[i].content, sizeof(E.r[i].content)+2);
+    // }
     E.r[i].render = malloc(E.r[i].size + 1);
     assert(E.r[i].render != NULL);
     memcpy(E.r[i].render, E.r[i].content, E.r[i].size);
     write(STDOUT_FILENO, E.r[i].render, E.r[i].size);
+    write(STDOUT_FILENO, "\r\n", 2);
     free(E.r[i].render);
   }
 }
