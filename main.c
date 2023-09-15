@@ -21,7 +21,7 @@
 #define CTRLQ 17
 #define CTRLS 19
 #define BACKSPACE 127
-#define ENTER 10
+#define ENTER 13
 
 void dbg(char *s, ...){
   va_list v;
@@ -244,6 +244,7 @@ int add_row(int pos, char *buf, ssize_t len) {
   return 0;
 }
 
+// TODO: Implemet adding rows, NULL checking etc, here itself
 void add_char_at(char c, int at, int rowpos){
   if (!E.r[rowpos].content){
     E.r[rowpos].content = malloc(1);
@@ -259,6 +260,7 @@ void add_char_at(char c, int at, int rowpos){
   E.r[rowpos].size++;
 }
 
+// TODO: move the `add_row` line to `add_char_at` function
 void insert_key(char c) {
   int rp = E.rowoff + E.y;
   int cp = E.coloff + E.x;
@@ -285,11 +287,17 @@ void delete_at(int rpos, int at){
   E.r[rpos].content = realloc(E.r[rpos].content, E.r[rpos].size);
 }
 
-// TODO: Fix bug
 void delete(){
   // No Op if there is no character to remove
-  if (E.x<1) return;
+  if (E.numrow==1&&E.x<1) return;
   int row = E.rowoff + E.y;
+  if (E.x<1){
+    E.y--;
+    E.numrow--;
+    E.x = E.r[row-1].size;
+    row--;
+    // TODO: Realloc the unused/deleted rows
+  }
   int at = E.coloff + E.x;
   delete_at(row, at);
 }
@@ -297,8 +305,20 @@ void delete(){
 // TODO: Fix bugs
 void enter_key(){
   int rp = E.rowoff + E.y;
+  // Handle in-between line enter key pressing
+  // int cp = E.coloff + E.x;
+  if (!E.r){
+    add_row(rp, "", 0);
+  }
+  E.r[rp].content = realloc(E.r[rp].content, E.r[rp].size + 3);
+  assert(E.r[rp].content != NULL);
+
+  // Append carriage return & newline to every row when enter key is pressed
+  memcpy(E.r[rp].content+E.r[rp].size, "\r\n", 2);
   add_row(rp+1, "", 0);
   E.y++;
+  E.x=0;
+  E.r[rp].size+=2;
   // write(STDOUT_FILENO, "Pressed Enter", strlen("Pressed Enter"));
   return;
 }
@@ -350,9 +370,9 @@ void handle_key_press() {
   case BACKSPACE:
     delete();
     break;
-  // case ENTER:
-  //   enter_key();
-  //   break;
+  case ENTER:
+    enter_key();
+    break;
   default:
     insert_key(c);
     // Handle default case i.e add it to the character buffer
@@ -372,7 +392,6 @@ void expand_rows(void) {
     assert(E.r[i].render != NULL);
     memcpy(E.r[i].render, E.r[i].content, E.r[i].size);
     write(STDOUT_FILENO, E.r[i].render, E.r[i].size);
-    write(STDOUT_FILENO, "\r\n", 2);
     free(E.r[i].render);
   }
 }
@@ -389,6 +408,7 @@ void refresh_screen(void) {
 // Program Driver
 
 int main(int argc, char *argv[]) {
+  // TODO: Accept only 1 argument(i.e. just the program name & nothing else) too
   if (argc < 2) {
     printf("No Arguments Supplied");
     return -1;
