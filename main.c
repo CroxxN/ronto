@@ -17,10 +17,10 @@
 #include <unistd.h>
 // #include <stddef.h>
 
-#define CTRLQ 17
-#define CTRLS 19
-#define BACKSPACE 127
-#define ENTER 13
+// #define CTRLQ 17
+// #define CTRLS 19
+// #define BACKSPACE 127
+// #define ENTER 13
 
 void dbg(char *s, ...){
   va_list v;
@@ -35,9 +35,14 @@ enum Key{
   CTRL_S = 19,
   CTRL_C = 3,
   TAB = 9,
-  // BACKSPACE = 127,
-  // ENTER = 10,
+  BACKSPACE = 127,
+  ENTER = 13,
   ESC = 0,
+  // Not actual code, just a way to represent the key compactly
+  ARROW_UP = 690,
+  ARROW_DOWN,
+  ARROW_LEFT,
+  ARROW_RIGHT
 };
 
 // Describes one row of the Editor
@@ -210,6 +215,11 @@ void get_window_size(int *row, int *col) {
   *col = w.ws_col;
 }
 
+// TODO: Implement copying functionality
+void xclp_cpy(void){
+  return;
+}
+
 // TODO: Implement save_file functionality
 void save_file(void) { return; }
 
@@ -305,7 +315,7 @@ void delete(){
 }
 
 // TODO: Fix bugs
-void enter_key(){
+void enter_key(void){
   int rp = E.rowoff + E.y;
   // Handle in-between line enter key pressing
   // int cp = E.coloff + E.x;
@@ -325,6 +335,41 @@ void enter_key(){
   return;
 }
 
+void shift_cursor(void){return;}
+
+// TODO: complete
+void arrow_key(int key){
+  // If at the beggining of everything, just exit.
+  // if (!E.r) return; // NOT NECESSARY
+
+  int rp = E.rowoff + E.y;
+  int cp = E.coloff + E.x;
+
+  // If at the begginning of the editor, do nothing
+  if (rp <=1 && cp<=1)return;
+
+  // If at the beggining of the line, and do nothing
+  if (key == ARROW_RIGHT && cp<=E.r[rp].size) return;
+    
+  // If at the end of everything, do nothing
+  if (key == ARROW_DOWN && rp == E.numrow) return;
+
+  int row_factor = 0;
+  int col_factor = 0;
+
+  if (key == ARROW_LEFT){
+    if (cp < 1) {
+      row_factor = -1;
+      rp = E.r[rp-1].size;
+    }else 
+      cp = -1;
+    // DO SOMETHING
+  }else{
+    // DO SOMETHING
+  }
+  shift_cursor();
+}
+
 // Carriage Return + Newline
 char *qmessage = "\r\nPressed Control + Q, so quitting\r\n";
 char *smessage = "\r\nPressed Control + S, so saving\r\n";
@@ -332,7 +377,7 @@ char *smessage = "\r\nPressed Control + S, so saving\r\n";
 // Maybe some editor config or other parameter
 int key_up(void) {
   char c;
-  // char seq[3];
+  char seq[3];
   int num;
   while ((num = read(term.fd, &c, 1)) == 0)
     ;
@@ -340,6 +385,23 @@ int key_up(void) {
   switch (c) {
     // DO Something
     case ESC:
+      if (read(term.fd, seq, 1) == 0) return ESC;
+      if (read(term.fd, seq+1, 1) == 0) return ESC;
+      if (seq[0] != '['){
+        // DO SOMETHING
+        // Page up/down, home, etc shise
+      }else {
+        switch (seq[1]) {
+          case 'A':
+            return ARROW_UP;
+          case 'B':
+            return ARROW_DOWN;
+          case 'C':
+            return ARROW_RIGHT;
+          case 'D':
+            return ARROW_LEFT;
+        }
+      }
     // Handle Escape Sequence
     return 0;
     break;
@@ -374,6 +436,8 @@ void handle_key_press() {
     break;
   case ENTER:
     enter_key();
+  case ARROW_UP | ARROW_DOWN | ARROW_RIGHT | ARROW_LEFT:
+    arrow_key(c);
     break;
   default:
     insert_key(c);
