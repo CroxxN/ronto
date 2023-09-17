@@ -4,7 +4,6 @@
 #define _POSIX_C_SOURCE 200809L
 
 
-#include <asm-generic/ioctls.h>
 #include <assert.h>
 #include <ctype.h>
 #include <getopt.h>
@@ -16,7 +15,7 @@
 #include <sys/ioctl.h>
 #include <termios.h>
 #include <unistd.h>
-#include <stddef.h>
+// #include <stddef.h>
 
 #define CTRLQ 17
 #define CTRLS 19
@@ -281,23 +280,26 @@ void insert_key(char c) {
 
 void delete_at(int rpos, int at){
   // E.r[rpos].content[at] = '\0';
-  E.r[rpos].size--;
-  E.x--;
+  // E.r[rpos].size-= step;
   // TODO: Don't call realloc so often?
   E.r[rpos].content = realloc(E.r[rpos].content, E.r[rpos].size);
 }
 
 void delete(){
   // No Op if there is no character to remove
-  if (E.numrow==1&&E.x<1) return;
+  if (E.numrow<=1&&E.x<1) return;
   int row = E.rowoff + E.y;
+  int step = 1;
   if (E.x<1){
+    E.x = E.r[row-1].size;
     E.y--;
     E.numrow--;
-    E.x = E.r[row-1].size;
     row--;
+    step = 2;
     // TODO: Realloc the unused/deleted rows
   }
+  E.x-=step;
+  E.r[row].size-=step;
   int at = E.coloff + E.x;
   delete_at(row, at);
 }
