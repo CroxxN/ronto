@@ -37,7 +37,7 @@ enum Key{
   TAB = 9,
   BACKSPACE = 127,
   ENTER = 13,
-  ESC = 0,
+  ESC = 27,
   // Not actual code, just a way to represent the key compactly
   ARROW_UP = 690,
   ARROW_DOWN,
@@ -72,7 +72,12 @@ struct Editor{
 
 static struct Editor E;
 
+struct buf{
+  char *seq;
+  int l;
+};
 
+struct buf b = {NULL, 0};
 
 // Basic Terminal Structure that holds some frequently used values - #GLOBAL
 struct Terminal {
@@ -225,7 +230,21 @@ void save_file(void) { return; }
 
 // A buffer formatter. It appends messages to be sent to the std output, and
 // flushes them all at once.
-void bf(void) { return; }
+void bf(char *buf) { 
+  int buf_len = strlen(buf);
+  b.seq = realloc(b.seq, b.l+buf_len);
+  memcpy(b.seq+b.l, buf, buf_len);
+  b.l+=buf_len;
+}
+
+void bf_flush(){
+  if (b.seq==NULL) return;
+  write(STDOUT_FILENO, b.seq, b.l);
+  // Reset the append buffer
+  free(b.seq);
+  b.seq = NULL;
+  b.l=0;
+}
 
 int add_row(int pos, char *buf, ssize_t len) {
   E.r = realloc(E.r, sizeof(row) * (E.numrow + 1));
@@ -271,6 +290,7 @@ void add_char_at(char c, int at, int rowpos){
 
 // TODO: move the `add_row` line to `add_char_at` function
 void insert_key(char c) {
+  if (iscntrl(c)) return;
   int rp = E.rowoff + E.y;
   int cp = E.coloff + E.x;
   if (rp >= E.numrow) {
@@ -361,12 +381,17 @@ void arrow_key(int key){
     if (cp < 1) {
       row_factor = -1;
       rp = E.r[rp-1].size;
-    }else 
-      cp = -1;
+    }else {
+      // TODO: Move cursor by calculating E.r->size - E.x
+      col_factor = -1;
+      bf("\x1b[1D");
+    }
     // DO SOMETHING
   }else{
     // DO SOMETHING
   }
+  E.x += col_factor;
+  E.y+= row_factor;  
   shift_cursor();
 }
 
@@ -394,6 +419,7 @@ int key_up(void) {
         switch (seq[1]) {
           case 'A':
             return ARROW_UP;
+
           case 'B':
             return ARROW_DOWN;
           case 'C':
@@ -436,7 +462,10 @@ void handle_key_press() {
     break;
   case ENTER:
     enter_key();
-  case ARROW_UP | ARROW_DOWN | ARROW_RIGHT | ARROW_LEFT:
+  case ARROW_UP:
+  case ARROW_DOWN: 
+  case ARROW_RIGHT: 
+  case ARROW_LEFT:
     arrow_key(c);
     break;
   default:
@@ -465,9 +494,12 @@ void expand_rows(void) {
 void refresh_screen(void) {
   // As we move cursor to home each time during refresh, we just erase from current line i.e. the first, to the last line
   // TODO: Modify for view buffers
+  // We can't directly flush everything after the expand_rows call. If we're to do so, 
+  // we need to copy the string from content to the flush buffer.
   char *write_buf = "\x1b[H\x1b[J";
   write(STDOUT_FILENO, write_buf, strlen(write_buf));
   expand_rows();
+  bf_flush();
   return;
 }
 
