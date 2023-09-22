@@ -230,11 +230,20 @@ void save_file(void) { return; }
 
 // A buffer formatter. It appends messages to be sent to the std output, and
 // flushes them all at once.
-void bf(char *buf) { 
+void bf(char *buf, ...) { 
+  // Grab the variadic arguments
+  va_list v;
+  va_start(v, buf);
+
   int buf_len = strlen(buf);
+  char *f_buf = malloc(buf_len);
+  vsprintf(f_buf, buf, v);
+  if (!f_buf) return;
   b.seq = realloc(b.seq, b.l+buf_len);
-  memcpy(b.seq+b.l, buf, buf_len);
+  memcpy(b.seq+b.l, f_buf, buf_len);
   b.l+=buf_len;
+
+  va_end(v);
 }
 
 void bf_flush(){
@@ -384,7 +393,7 @@ void arrow_key(int key){
     }else {
       // TODO: Move cursor by calculating E.r->size - E.x
       col_factor = -1;
-      bf("\x1b[1D");
+      bf("\x1b[%dD", E.r[rp].size-E.x);
     }
     // DO SOMETHING
   }else{
