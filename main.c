@@ -1,8 +1,7 @@
-// We use the `vdprintf` function, which is a GNU Extension, and 
+// We use the `vdprintf` function, which is a GNU Extension, and
 // were described in POSIX.1-2008, so we define the POSIX C source
 // to avoid `gcc` yelling about implicit functions
 #define _POSIX_C_SOURCE 200809L
-
 
 #include <assert.h>
 #include <ctype.h>
@@ -22,14 +21,14 @@
 // #define BACKSPACE 127
 // #define ENTER 13
 
-void dbg(char *s, ...){
+void dbg(char *s, ...) {
   va_list v;
   va_start(v, s);
   vdprintf(STDOUT_FILENO, s, v);
   va_end(v);
 }
 
-enum Key{
+enum Key {
   // In decimal, NOT Octal
   CTRL_Q = 17,
   CTRL_S = 19,
@@ -57,7 +56,7 @@ typedef struct row {
 
 // Editor config & state
 
-struct Editor{
+struct Editor {
   int x;
   int y;
   row *r;
@@ -66,13 +65,16 @@ struct Editor{
   int rowoff;
   int screenrow;
   int screencol;
+  // Cursor position independent of the total number of rows or columns
+  int cur_row;
+
   bool save;
   char *file_name;
 };
 
 static struct Editor E;
 
-struct buf{
+struct buf {
   char *seq;
   int l;
 };
@@ -144,7 +146,8 @@ int init_editor(char *file) {
     return -1;
   }
   // yes. DRY code for you.
-  E.x = E.y = E.numrow = E.coloff = E.rowoff = E.screenrow = E.screencol = 0;
+  E.x = E.cur_row = E.y = E.numrow = E.coloff = E.rowoff = E.screenrow =
+      E.screencol = 0;
   E.save = false;
   E.file_name = NULL;
   E.r = NULL;
@@ -164,9 +167,9 @@ void disable_raw_mode() {
   free(E.r);
   // Clear the alternate screen
   write(STDOUT_FILENO, "\x1b[H\x1b[2J", 7);
-  // Switch back to normal screen -- NOT Specifically VT100, but should work on most modern 
-  // terminals and emulators. If the terminal is not capable of such feature, just discard
-  // the escape sequence.
+  // Switch back to normal screen -- NOT Specifically VT100, but should work on
+  // most modern terminals and emulators. If the terminal is not capable of such
+  // feature, just discard the escape sequence.
   write(STDOUT_FILENO, "\x1b[?1049l", strlen("\x1b[?1049l"));
 
   // `\x1b[1;32m` is just escape sequence for printing bold, green colored text
@@ -203,7 +206,6 @@ int enable_raw_mode() {
   return 0;
 }
 
-
 // STATUS: Incomplete
 void get_window_size(int *row, int *col) {
   struct winsize w;
@@ -221,16 +223,14 @@ void get_window_size(int *row, int *col) {
 }
 
 // TODO: Implement copying functionality
-void xclp_cpy(void){
-  return;
-}
+void xclp_cpy(void) { return; }
 
 // TODO: Implement save_file functionality
 void save_file(void) { return; }
 
 // A buffer formatter. It appends messages to be sent to the std output, and
 // flushes them all at once.
-void bf(char *buf, ...) { 
+void bf(char *buf, ...) {
   // Grab the variadic arguments
   va_list v;
   va_start(v, buf);
@@ -238,21 +238,23 @@ void bf(char *buf, ...) {
   int buf_len = strlen(buf);
   char *f_buf = malloc(buf_len);
   vsprintf(f_buf, buf, v);
-  if (!f_buf) return;
-  b.seq = realloc(b.seq, b.l+buf_len);
-  memcpy(b.seq+b.l, f_buf, buf_len);
-  b.l+=buf_len;
+  if (!f_buf)
+    return;
+  b.seq = realloc(b.seq, b.l + buf_len);
+  memcpy(b.seq + b.l, f_buf, buf_len);
+  b.l += buf_len;
 
   va_end(v);
 }
 
-void bf_flush(){
-  if (b.seq==NULL) return;
+void bf_flush() {
+  if (b.seq == NULL)
+    return;
   write(STDOUT_FILENO, b.seq, b.l);
   // Reset the append buffer
   free(b.seq);
   b.seq = NULL;
-  b.l=0;
+  b.l = 0;
 }
 
 int add_row(int pos, char *buf, ssize_t len) {
@@ -282,16 +284,16 @@ int add_row(int pos, char *buf, ssize_t len) {
 }
 
 // TODO: Implemet adding rows, NULL checking etc, here itself
-void add_char_at(char c, int at, int rowpos){
-  if (!E.r[rowpos].content){
+void add_char_at(char c, int at, int rowpos) {
+  if (!E.r[rowpos].content) {
     E.r[rowpos].content = malloc(1);
-    assert(E.r[rowpos].content!=NULL);
+    assert(E.r[rowpos].content != NULL);
   }
   // if (sizeof(E.r[rowpos].content)>at+1){
   //   E.r[rowpos].size = sizeof(E.r[rowpos].content) + 1;
   // }
   // 1+ Hours of BUG.
-  E.r[rowpos].content = realloc(E.r[rowpos].content, E.r[rowpos].size+1);
+  E.r[rowpos].content = realloc(E.r[rowpos].content, E.r[rowpos].size + 1);
   E.r[rowpos].content[at] = c;
   // Add null char at the end
   E.r[rowpos].size++;
@@ -299,7 +301,8 @@ void add_char_at(char c, int at, int rowpos){
 
 // TODO: move the `add_row` line to `add_char_at` function
 void insert_key(char c) {
-  if (iscntrl(c)) return;
+  if (iscntrl(c))
+    return;
   int rp = E.rowoff + E.y;
   int cp = E.coloff + E.x;
   if (rp >= E.numrow) {
@@ -317,57 +320,67 @@ void insert_key(char c) {
   // }
 }
 
-void delete_at(int rpos, int at){
-  // E.r[rpos].content[at] = '\0';
-  // E.r[rpos].size-= step;
+void delete_at(int rpos, int at) {
+  if (rpos == 0 && at < 0) {
+    return;
+  };
   // TODO: Don't call realloc so often?
+  if (at < E.r[rpos].size) {
+    memmove(E.r[rpos].content + at, E.r[rpos].content + at + 1,
+            E.r[rpos].size - at);
+    bf("\x1b[%dD", E.r[rpos].size - E.x);
+  }
   E.r[rpos].content = realloc(E.r[rpos].content, E.r[rpos].size);
 }
 
-void delete(){
+void delete() {
   // No Op if there is no character to remove
-  if (E.numrow<=1&&E.x<1) return;
+  if (E.numrow <= 1 && E.x < 1) {
+    if (!E.r) return;
+    bf("\x1b[%dD", E.r[E.y].size);
+    return;
+  }
   int row = E.rowoff + E.y;
   int step = 1;
-  if (E.x<1){
-    E.x = E.r[row-1].size;
+  if (E.x < 1) {
+    E.x = E.r[row - 1].size;
     E.y--;
     E.numrow--;
     row--;
     step = 2;
     // TODO: Realloc the unused/deleted rows
   }
-  E.x-=step;
-  E.r[row].size-=step;
+  E.x -= step;
+  E.r[row].size -= step;
   int at = E.coloff + E.x;
   delete_at(row, at);
 }
 
 // TODO: Fix bugs
-void enter_key(void){
+void enter_key(void) {
   int rp = E.rowoff + E.y;
   // Handle in-between line enter key pressing
   // int cp = E.coloff + E.x;
-  if (!E.r){
+  if (!E.r) {
     add_row(rp, "", 0);
   }
   E.r[rp].content = realloc(E.r[rp].content, E.r[rp].size + 3);
   assert(E.r[rp].content != NULL);
 
   // Append carriage return & newline to every row when enter key is pressed
-  memcpy(E.r[rp].content+E.r[rp].size, "\r\n", 2);
-  add_row(rp+1, "", 0);
+  memcpy(E.r[rp].content + E.r[rp].size, "\r\n", 2);
+  add_row(rp + 1, "", 0);
   E.y++;
-  E.x=0;
-  E.r[rp].size+=2;
+  E.x = 0;
+  E.r[rp].size += 2;
   // write(STDOUT_FILENO, "Pressed Enter", strlen("Pressed Enter"));
   return;
 }
 
-void shift_cursor(void){return;}
+void shift_cursor(void) { return; }
 
 // TODO: complete
-void arrow_key(int key){
+void arrow_key(int key) {
   // If at the beggining of everything, just exit.
   // if (!E.r) return; // NOT NECESSARY
 
@@ -375,32 +388,40 @@ void arrow_key(int key){
   int cp = E.coloff + E.x;
 
   // If at the begginning of the editor, do nothing
-  if (rp <=1 && cp<=1)return;
+  if (rp < 1 && cp < 1)
+    return;
 
   // If at the beggining of the line, and do nothing
-  if (key == ARROW_RIGHT && cp<=E.r[rp].size) return;
-    
+  if (key == ARROW_RIGHT && cp <= E.r[rp].size)
+    return;
+
   // If at the end of everything, do nothing
-  if (key == ARROW_DOWN && rp == E.numrow) return;
+  if (key == ARROW_DOWN && rp == E.numrow)
+    return;
 
   int row_factor = 0;
   int col_factor = 0;
 
-  if (key == ARROW_LEFT){
-    if (cp < 1) {
+  if (key == ARROW_LEFT) {
+    if (cp < 0) {
       row_factor = -1;
-      rp = E.r[rp-1].size;
-    }else {
+      col_factor = -2;
+      // TODO: generate logic for in-row movement
+      rp = E.r[rp - 1].size;
+    } else {
       // TODO: Move cursor by calculating E.r->size - E.x
       col_factor = -1;
-      bf("\x1b[%dD", E.r[rp].size-E.x);
+      // TODO: Change E.x to rp
+      bf("\x1b[%dD", E.r[rp].size - E.x + 1);
     }
     // DO SOMETHING
-  }else{
+  } else {
     // DO SOMETHING
   }
+  if (E.x <= 1 && col_factor < 0)
+    return;
   E.x += col_factor;
-  E.y+= row_factor;  
+  E.y += row_factor;
   shift_cursor();
 }
 
@@ -417,26 +438,28 @@ int key_up(void) {
     ;
   assert(num != -1);
   switch (c) {
-    // DO Something
-    case ESC:
-      if (read(term.fd, seq, 1) == 0) return ESC;
-      if (read(term.fd, seq+1, 1) == 0) return ESC;
-      if (seq[0] != '['){
-        // DO SOMETHING
-        // Page up/down, home, etc shise
-      }else {
-        switch (seq[1]) {
-          case 'A':
-            return ARROW_UP;
+  // DO Something
+  case ESC:
+    if (read(term.fd, seq, 1) == 0)
+      return ESC;
+    if (read(term.fd, seq + 1, 1) == 0)
+      return ESC;
+    if (seq[0] != '[') {
+      // DO SOMETHING
+      // Page up/down, home, etc shise
+    } else {
+      switch (seq[1]) {
+      case 'A':
+        return ARROW_UP;
 
-          case 'B':
-            return ARROW_DOWN;
-          case 'C':
-            return ARROW_RIGHT;
-          case 'D':
-            return ARROW_LEFT;
-        }
+      case 'B':
+        return ARROW_DOWN;
+      case 'C':
+        return ARROW_RIGHT;
+      case 'D':
+        return ARROW_LEFT;
       }
+    }
     // Handle Escape Sequence
     return 0;
     break;
@@ -467,13 +490,13 @@ void handle_key_press() {
     // TODO: some vim-like key-bindings? For future updates
     break;
   case BACKSPACE:
-    delete();
+    delete ();
     break;
   case ENTER:
     enter_key();
   case ARROW_UP:
-  case ARROW_DOWN: 
-  case ARROW_RIGHT: 
+  case ARROW_DOWN:
+  case ARROW_RIGHT:
   case ARROW_LEFT:
     arrow_key(c);
     break;
@@ -487,7 +510,8 @@ void handle_key_press() {
 // TODO: Expand tabs
 void expand_rows(void) {
   for (int i = 0; i < E.numrow; i++) {
-    if (E.r[i].content==NULL) return;
+    if (E.r[i].content == NULL)
+      return;
     // TODO: Revise this logic
     // if (sizeof(E.r[i].content)<E.r[i].size+2){
     //   E.r[i].content = realloc(E.r[i].content, sizeof(E.r[i].content)+2);
@@ -501,13 +525,16 @@ void expand_rows(void) {
 }
 
 void refresh_screen(void) {
-  // As we move cursor to home each time during refresh, we just erase from current line i.e. the first, to the last line
+  // As we move cursor to home each time during refresh, we just erase from
+  // current line i.e. the first, to the last line
   // TODO: Modify for view buffers
-  // We can't directly flush everything after the expand_rows call. If we're to do so, 
-  // we need to copy the string from content to the flush buffer.
+  // We can't directly flush everything after the expand_rows call. If we're to
+  // do so, we need to copy the string from content to the flush buffer.
   char *write_buf = "\x1b[H\x1b[J";
   write(STDOUT_FILENO, write_buf, strlen(write_buf));
   expand_rows();
+  // bf("");
+  // bf("\x1b[%dD", E.r[0].size-E.x+1);
   bf_flush();
   return;
 }
@@ -553,15 +580,15 @@ int main(int argc, char *argv[]) {
   }
   if (flush)
     // Goto alternate screen buffer
-    write(STDOUT_FILENO,"\x1b[?1049h" ,strlen("\x1b[?1049h"));
+    write(STDOUT_FILENO, "\x1b[?1049h", strlen("\x1b[?1049h"));
 
   atexit(disable_raw_mode);
 
   init_editor(file_name);
   enable_raw_mode();
   while (1) {
-    handle_key_press();
     refresh_screen();
+    handle_key_press();
   }
   return 0;
 }
