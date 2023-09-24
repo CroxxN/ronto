@@ -380,6 +380,7 @@ void enter_key(void) {
 void shift_cursor(void) { return; }
 
 // TODO: complete
+// TO_FIX: Proper cursor display
 void arrow_key(int key) {
   // If at the beggining of everything, just exit.
   // if (!E.r) return; // NOT NECESSARY
@@ -391,16 +392,19 @@ void arrow_key(int key) {
   if (rp < 1 && cp < 1)
     return;
 
-  // If at the beggining of the line, and do nothing
-  if (key == ARROW_RIGHT && cp <= E.r[rp].size)
-    return;
+  // If at the end of the editor lines, do nothing
+  if (rp>=E.numrow && cp >= E.r[rp].size) return;
 
   // If at the end of everything, do nothing
-  if (key == ARROW_DOWN && rp == E.numrow)
-    return;
+  // if (key == ARROW_DOWN && rp == E.numrow)
+  //   return;
 
+  
   int row_factor = 0;
   int col_factor = 0;
+
+  // Determine the type of key and execute
+  // TODO: Make separate functions?
 
   if (key == ARROW_LEFT) {
     if (cp < 0) {
@@ -408,20 +412,64 @@ void arrow_key(int key) {
       col_factor = -2;
       // TODO: generate logic for in-row movement
       rp = E.r[rp - 1].size;
+      bf("\x1b%dA\x1b%dD", E.numrow-E.y+1, 2);
     } else {
       // TODO: Move cursor by calculating E.r->size - E.x
       col_factor = -1;
-      // TODO: Change E.x to rp
+
+      // Move the cursor %d units from the RIGHT
       bf("\x1b[%dD", E.r[rp].size - E.x + 1);
     }
-    // DO SOMETHING
-  } else {
-    // DO SOMETHING
+
   }
+  // TODO: Clear some rough edges
+  else if (key == ARROW_RIGHT){
+    if (cp>=E.r[rp].size) {
+      row_factor = 1;
+      col_factor = -E.x;
+      bf("\x1b%dB\x1b%dD", E.numrow-E.y-1, E.x);
+    }
+    else {
+      col_factor = 1;
+      bf("\x1b[%dD", E.r[rp].size - E.x-1);
+    }
+  }
+  else if (key == ARROW_UP){
+    // If trying to go up the first line, do nothing
+    if (E.y<1) return;
+
+    row_factor = -1;
+    int shift_factor = E.numrow-E.y-1;
+    shift_factor = E.y == 1? E.numrow: shift_factor;
+      // bf("\x1b[%dA\x1b[%dD", E.numrow - E.y - 1, E.r[rp].size-E.x);
+    // TODO: Implement same column remembering when arrow up
+    bf("\x1b[%dA", shift_factor);
+  }
+  else if (key == ARROW_DOWN){
+    // If trying to go beyond the first line, do nothing
+    if (E.y>=E.numrow) return;
+
+    row_factor = 1;
+    bf("\x1b[%dA", E.numrow - E.y + 1);
+  }
+  // switch (key) {
+  // ARROW_RIGHT:
+  //   if (cp >= E.r[rp].size) return;
+  //   // DO SOMETHING
+  //   break;
+  // ARROW_UP:
+  //   // DO SOMETHING
+  //   break;
+  // ARROW_DOWN:
+  //   // DO SOMETHING
+  //   break;
+  // }
+
   if (E.x <= 1 && col_factor < 0)
     return;
   E.x += col_factor;
   E.y += row_factor;
+  if (E.x>E.r[E.y].size) E.x = E.r[E.y].size;
   shift_cursor();
 }
 
