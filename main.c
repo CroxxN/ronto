@@ -283,6 +283,20 @@ int add_row(int pos, char *buf, ssize_t len) {
   return 0;
 }
 
+void remove_row(int row, int at){
+  // if (row < E.numrow){
+  //   // TODO: Implement removing the \r\n sequences from the previous row without removing everything
+  //   return;
+  // }
+  E.x = E.r[row - 1].size - 2;
+  E.y--;
+  E.numrow--;
+  row--;
+  E.r[E.y].size -= 2;
+  E.r[E.y].content = realloc(E.r[E.y].content, E.r[E.y].size);
+  E.r = realloc(E.r, E.numrow);
+}
+
 // TODO: Implemet adding rows, NULL checking etc, here itself
 void add_char_at(char c, int at, int rowpos) {
   if (!E.r[rowpos].content) {
@@ -306,7 +320,6 @@ void insert_key(char c) {
   int rp = E.rowoff + E.y;
   int cp = E.coloff + E.x;
   if (rp >= E.numrow) {
-    // TODO: implement this function
     add_row(rp, "", 0);
     // E.y++;
   }
@@ -328,7 +341,7 @@ void delete_at(int rpos, int at) {
   if (at < E.r[rpos].size) {
     memmove(E.r[rpos].content + at, E.r[rpos].content + at + 1,
             E.r[rpos].size - at);
-    bf("\x1b[%dD", E.r[rpos].size - E.x);
+    // bf("\x1b[%dD", E.r[rpos].size - E.x);
   }
   E.r[rpos].content = realloc(E.r[rpos].content, E.r[rpos].size);
 }
@@ -337,22 +350,18 @@ void delete() {
   // No Op if there is no character to remove
   if (E.numrow <= 1 && E.x < 1) {
     if (!E.r) return;
-    bf("\x1b[%dD", E.r[E.y].size);
     return;
   }
+
   int row = E.rowoff + E.y;
-  int step = 1;
-  if (E.x < 1) {
-    E.x = E.r[row - 1].size;
-    E.y--;
-    E.numrow--;
-    row--;
-    step = 2;
-    // TODO: Realloc the unused/deleted rows
-  }
-  E.x -= step;
-  E.r[row].size -= step;
   int at = E.coloff + E.x;
+  if (E.x < 1) {
+    // if at the beginning of the line and pressed delete, remove the row(\r\n char)
+    remove_row(row, at);
+    return;
+  }
+  E.x--;
+  E.r[row].size--;
   delete_at(row, at);
 }
 
@@ -377,7 +386,15 @@ void enter_key(void) {
   return;
 }
 
-void shift_cursor(void) { return; }
+void shift_cursor(void) {
+  int rp = E.rowoff + E.y;
+  int cp = E.coloff + E.x;
+
+  // Position the cursor at the current E.y row and E.x column
+  // if (cp<=1) cp = -1;
+  bf("\x1b[%d;%dH", rp+1, cp+1);
+  return;
+}
 
 // TODO: complete
 // TO_FIX: Proper cursor display
@@ -389,11 +406,8 @@ void arrow_key(int key) {
   int cp = E.coloff + E.x;
 
   // If at the begginning of the editor, do nothing
-  if (rp < 1 && cp < 1)
-    return;
+  if (!E.r) return;
 
-  // If at the end of the editor lines, do nothing
-  if (rp>=E.numrow && cp >= E.r[rp].size) return;
 
   // If at the end of everything, do nothing
   // if (key == ARROW_DOWN && rp == E.numrow)
@@ -407,31 +421,30 @@ void arrow_key(int key) {
   // TODO: Make separate functions?
 
   if (key == ARROW_LEFT) {
-    if (cp < 0) {
+    if (rp <1 && cp<1) return;
+    if (cp < 1) {
       row_factor = -1;
       col_factor = -2;
-      // TODO: generate logic for in-row movement
-      rp = E.r[rp - 1].size;
-      bf("\x1b%dA\x1b%dD", E.numrow-E.y+1, 2);
+      E.x = E.r[E.y-1].size;
     } else {
       // TODO: Move cursor by calculating E.r->size - E.x
       col_factor = -1;
 
-      // Move the cursor %d units from the RIGHT
-      bf("\x1b[%dD", E.r[rp].size - E.x + 1);
     }
 
   }
   // TODO: Clear some rough edges
   else if (key == ARROW_RIGHT){
+    // If at the end of the editor lines, do nothing
+    if (rp>=E.numrow && cp >= E.r[rp].size) return;
+
     if (cp>=E.r[rp].size) {
+
       row_factor = 1;
       col_factor = -E.x;
-      bf("\x1b%dB\x1b%dD", E.numrow-E.y-1, E.x);
     }
     else {
       col_factor = 1;
-      bf("\x1b[%dD", E.r[rp].size - E.x-1);
     }
   }
   else if (key == ARROW_UP){
@@ -441,36 +454,20 @@ void arrow_key(int key) {
     row_factor = -1;
     int shift_factor = E.numrow-E.y-1;
     shift_factor = E.y == 1? E.numrow: shift_factor;
-      // bf("\x1b[%dA\x1b[%dD", E.numrow - E.y - 1, E.r[rp].size-E.x);
-    // TODO: Implement same column remembering when arrow up
-    bf("\x1b[%dA", shift_factor);
   }
   else if (key == ARROW_DOWN){
     // If trying to go beyond the first line, do nothing
     if (E.y>=E.numrow) return;
 
     row_factor = 1;
-    bf("\x1b[%dA", E.numrow - E.y + 1);
   }
-  // switch (key) {
-  // ARROW_RIGHT:
-  //   if (cp >= E.r[rp].size) return;
-  //   // DO SOMETHING
-  //   break;
-  // ARROW_UP:
-  //   // DO SOMETHING
-  //   break;
-  // ARROW_DOWN:
-  //   // DO SOMETHING
-  //   break;
-  // }
 
-  if (E.x <= 1 && col_factor < 0)
-    return;
+  // WTF?
+  // if (E.x < 1 && col_factor < 0)
+  //   return;
   E.x += col_factor;
   E.y += row_factor;
-  if (E.x>E.r[E.y].size) E.x = E.r[E.y].size;
-  shift_cursor();
+  if (E.x>E.r[E.y].size) E.x = E.r[E.y].size-2;
 }
 
 // Carriage Return + Newline
@@ -564,11 +561,7 @@ void expand_rows(void) {
     // if (sizeof(E.r[i].content)<E.r[i].size+2){
     //   E.r[i].content = realloc(E.r[i].content, sizeof(E.r[i].content)+2);
     // }
-    E.r[i].render = malloc(E.r[i].size + 1);
-    assert(E.r[i].render != NULL);
-    memcpy(E.r[i].render, E.r[i].content, E.r[i].size);
-    write(STDOUT_FILENO, E.r[i].render, E.r[i].size);
-    free(E.r[i].render);
+    write(STDOUT_FILENO, E.r[i].content, E.r[i].size);
   }
 }
 
@@ -581,8 +574,9 @@ void refresh_screen(void) {
   char *write_buf = "\x1b[H\x1b[J";
   write(STDOUT_FILENO, write_buf, strlen(write_buf));
   expand_rows();
-  // bf("");
-  // bf("\x1b[%dD", E.r[0].size-E.x+1);
+
+  // Shift cursor to the current postion
+  shift_cursor();
   bf_flush();
   return;
 }
@@ -635,8 +629,8 @@ int main(int argc, char *argv[]) {
   init_editor(file_name);
   enable_raw_mode();
   while (1) {
-    refresh_screen();
     handle_key_press();
+    refresh_screen();
   }
   return 0;
 }
