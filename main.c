@@ -300,7 +300,8 @@ void remove_row(int row, int at){
 // TODO: Implemet adding rows, NULL checking etc, here itself
 void add_char_at(char c, int at, int rowpos) {
   if (!E.r[rowpos].content) {
-    E.r[rowpos].content = malloc(1);
+    add_row(1, "", 0);
+    // E.r[rowpos].content = malloc(1);
     assert(E.r[rowpos].content != NULL);
   }
   // if (sizeof(E.r[rowpos].content)>at+1){
@@ -333,6 +334,7 @@ void insert_key(char c) {
   // }
 }
 
+// TODO: Fix bugs
 void delete_at(int rpos, int at) {
   if (rpos == 0 && at < 0) {
     return;
@@ -347,9 +349,9 @@ void delete_at(int rpos, int at) {
 }
 
 void delete() {
+  if (!E.r) return;
   // No Op if there is no character to remove
   if (E.numrow <= 1 && E.x < 1) {
-    if (!E.r) return;
     return;
   }
 
@@ -373,7 +375,7 @@ void enter_key(void) {
   if (!E.r) {
     add_row(rp, "", 0);
   }
-  E.r[rp].content = realloc(E.r[rp].content, E.r[rp].size + 3);
+  E.r[rp].content = realloc(E.r[rp].content, E.r[rp].size + 2);
   assert(E.r[rp].content != NULL);
 
   // Append carriage return & newline to every row when enter key is pressed
@@ -382,31 +384,32 @@ void enter_key(void) {
   E.y++;
   E.x = 0;
   E.r[rp].size += 2;
-  // write(STDOUT_FILENO, "Pressed Enter", strlen("Pressed Enter"));
   return;
 }
 
 void shift_cursor(void) {
+  if (!E.r) return;
   int rp = E.rowoff + E.y;
   int cp = E.coloff + E.x;
 
   // Position the cursor at the current E.y row and E.x column
   // if (cp<=1) cp = -1;
-  bf("\x1b[%d;%dH", rp+1, cp+1);
+  if (rp==E.numrow-1 && cp>E.r[rp].size){
+    return;
+  }
+  bf("\x1b[%d;%dH", rp + 1, cp + 1);
   return;
 }
 
 // TODO: complete
 // TO_FIX: Proper cursor display
 void arrow_key(int key) {
-  // If at the beggining of everything, just exit.
-  // if (!E.r) return; // NOT NECESSARY
-
-  int rp = E.rowoff + E.y;
-  int cp = E.coloff + E.x;
 
   // If at the begginning of the editor, do nothing
   if (!E.r) return;
+
+  int rp = E.rowoff + E.y;
+  int cp = E.coloff + E.x;
 
 
   // If at the end of everything, do nothing
@@ -425,7 +428,7 @@ void arrow_key(int key) {
     if (cp < 1) {
       row_factor = -1;
       col_factor = -2;
-      E.x = E.r[E.y-1].size;
+      E.x = E.r[E.y-1].size-1;
     } else {
       // TODO: Move cursor by calculating E.r->size - E.x
       col_factor = -1;
@@ -436,9 +439,9 @@ void arrow_key(int key) {
   // TODO: Clear some rough edges
   else if (key == ARROW_RIGHT){
     // If at the end of the editor lines, do nothing
-    if (rp>=E.numrow && cp >= E.r[rp].size) return;
+    if (rp>=E.numrow-1 && cp >= E.r[rp].size) return;
 
-    if (cp>=E.r[rp].size) {
+    if (rp<E.numrow-1 && cp>=E.r[rp].size-2) {
 
       row_factor = 1;
       col_factor = -E.x;
@@ -462,9 +465,6 @@ void arrow_key(int key) {
     row_factor = 1;
   }
 
-  // WTF?
-  // if (E.x < 1 && col_factor < 0)
-  //   return;
   E.x += col_factor;
   E.y += row_factor;
   if (E.x>E.r[E.y].size) E.x = E.r[E.y].size-2;
