@@ -1,26 +1,12 @@
-// We use the `vdprintf` function, which is a GNU Extension, and
-// were described in POSIX.1-2008, so we define the POSIX C source
-// to avoid `gcc` yelling about implicit functions
-#define _POSIX_C_SOURCE 200809L
 
-#include <assert.h>
-#include <ctype.h>
-#include <getopt.h>
-#include <stdarg.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/ioctl.h>
-#include <termios.h>
-#include <unistd.h>
-// #include <stddef.h>
+#include "ronto.h"
 
 // #define CTRLQ 17
 // #define CTRLS 19
 // #define BACKSPACE 127
 // #define ENTER 13
 
+// For printing values to the stdout file descriptor
 void dbg(char *s, ...) {
   va_list v;
   va_start(v, s);
@@ -44,68 +30,24 @@ enum Key {
   ARROW_RIGHT
 };
 
-// Describes one row of the Editor
-
-typedef struct row {
-  int idx;         // Current index of the row
-  int size;        // Number of chars, punctuations and tabs in this current row
-  int render_size; // size after adding all the tabs
-  char *content;   // content of the row
-  char *render;    // content ready for render - with tabs expanded
-} row;
-
-// Editor config & state
-
-struct Editor {
-  int x;
-  int y;
-  row *r;
-  int numrow;
-  int coloff;
-  int rowoff;
-  int screenrow;
-  int screencol;
-  // Cursor position independent of the total number of rows or columns
-  int cur_row;
-
-  bool save;
-  char *file_name;
-};
 
 static struct Editor E;
 
-struct buf {
-  char *seq;
-  int l;
-};
 
-struct buf b = {NULL, 0};
+static struct buf b = {NULL, 0};
 
-// Basic Terminal Structure that holds some frequently used values - #GLOBAL
-struct Terminal {
-  /*
-  The struct pointer definition is completely useless(especially because it's
-  global variable anyway).
-  One could easily use a non-pointer version. I just wanted to
-  see & learn, so used a pointer version.
-  Pitfalls here I come.
-  */
-  struct termios *original_term;
 
-  bool is_raw;
-  int fd;
-} term = {NULL, 0, STDIN_FILENO};
+static struct Terminal term = {NULL, 0, STDIN_FILENO};
 
 // Checks whether a string is wholly alphanumeric or punctuation-ic subset
 
 // Fails when the `string` is binary or non-alphanumeric & non-punctuation(._-)
 
 int isalnum_str(char *string) {
-  for (int i = 0; i < strlen(string); i++) {
-    if (isalnum(string[i]) < 0 || string[i] == '.' || string[i] == '_' ||
-        string[i] == '-')
+  for (int i = 0; i < strlen(string); i++)
+    if (iscntrl(string[i]))
       return -1;
-  }
+
   return 0;
 }
 
@@ -145,24 +87,35 @@ int init_editor(char *file) {
     printf("Failed Initialization\n");
     return -1;
   }
+
+  FILE *t = tmpfile();
+  // verify that t is not NULL and `tmpfile()` call succeded
+  assert(t!=NULL);
+  E.temp_file = t;
+
   // yes. DRY code for you.
-  E.x = E.cur_row = E.y = E.numrow = E.coloff = E.rowoff = E.screenrow =
+  E.x =  E.y = E.numrow = E.coloff = E.rowoff = E.screenrow =
       E.screencol = 0;
   E.save = false;
-  E.file_name = NULL;
   E.r = NULL;
-  E.file_name = file;
+  E.file = fopen(file, "w");
   return 0;
 }
 
 // STATUS: complete
 
 void disable_raw_mode() {
-  if (term.original_term == NULL)
+  if (term.original_term == NULL) {
     printf("NULLED POINTER\n");
+    return;
+  }
   if (term.is_raw)
-    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, term.original_term) == -1)
+    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, term.original_term) == -1) {
       perror("Failed to disable raw mode");
+      return;
+    }
+
+  term.is_raw = 0;
   free(term.original_term);
   free(E.r);
   // Clear the alternate screen
@@ -174,14 +127,16 @@ void disable_raw_mode() {
 
   // `\x1b[1;32m` is just escape sequence for printing bold, green colored text
   printf("\n\x1b[1;32mExited Successfully from Ronto!\x1b[0m\n");
-  term.is_raw = 0;
 }
 
 // Done
 
 int enable_raw_mode() {
   struct termios raw;
-  tcgetattr(term.fd, &raw);
+  if (tcgetattr(term.fd, &raw) != 0){
+    perror("Failed to get terminal attributes");
+    exit(1);
+  }
 
   // Local Flag
 
@@ -200,9 +155,10 @@ int enable_raw_mode() {
   raw.c_cflag |= (CS8); // No & mask, no bit flipping
 
   term.is_raw = 1;
-  if (tcsetattr(term.fd, TCSAFLUSH, &raw) == -1)
+  if (tcsetattr(term.fd, TCSAFLUSH, &raw) == -1) {
     perror("Failed to set terminal to raw mode");
-
+    return -1;
+  }
   return 0;
 }
 
@@ -222,11 +178,51 @@ void get_window_size(int *row, int *col) {
   *col = w.ws_col;
 }
 
+char *rowstostr(int *s){
+  int size = 0;
+  for (int i=0; i<E.numrow-1; i++)
+    size += E.r[i].size;
+  *s = size;
+  char *strs;
+  strs = malloc(size);
+  assert(strs!=NULL);
+
+  for (int i=0; i<E.numrow-1; i++){
+    assert(E.r[i].content!=NULL);
+    memcpy(strs, E.r[i].content, E.r[i].size);
+    strs+=E.r[i].size;
+  }
+  *strs = '\0';
+  return strs;
+}
+
 // TODO: Implement copying functionality
-void xclp_cpy(void) { return; }
+void xclp_cpy(void) {
+  int size = 0;
+  char *s = rowstostr(&size);
+  write(STDIN_FILENO, s, size);
+  // TODO: Fix bug
+  int status = system("xclip -selection clipboard");
+  // TODO: Check the status code
+  (void )status;
+
+  free(s);
+  return;
+}
 
 // TODO: Implement save_file functionality
-void save_file(void) { return; }
+void save_file() {
+  int size = 0;
+  char *strings = rowstostr(&size);
+  // TODO: Error handeling
+  if (!E.file) return;
+  fwrite(strings, size, 1, E.file);
+  // For now, just indicate that we have saved it.
+  E.save = true;
+  free(strings);
+  strings = NULL;
+  return;
+}
 
 // A buffer formatter. It appends messages to be sent to the std output, and
 // flushes them all at once.
@@ -301,7 +297,7 @@ void remove_row(int row, int at){
 void add_char_at(char c, int at, int rowpos) {
   if (!E.r[rowpos].content) {
     add_row(1, "", 0);
-    // E.r[rowpos].content = malloc(1);
+    E.r[rowpos].content = malloc(1);
     assert(E.r[rowpos].content != NULL);
   }
   // if (sizeof(E.r[rowpos].content)>at+1){
@@ -309,6 +305,13 @@ void add_char_at(char c, int at, int rowpos) {
   // }
   // 1+ Hours of BUG.
   E.r[rowpos].content = realloc(E.r[rowpos].content, E.r[rowpos].size + 1);
+  // move all the characters to the right when a character is added to the middle of the
+  // content buffer.
+
+  if (at < E.r[rowpos].size) {
+    memmove(E.r[rowpos].content + at + 1, E.r[rowpos].content + at,
+            E.r[rowpos].size - at);
+  }
   E.r[rowpos].content[at] = c;
   // Add null char at the end
   E.r[rowpos].size++;
@@ -348,15 +351,15 @@ void delete_at(int rpos, int at) {
   E.r[rpos].content = realloc(E.r[rpos].content, E.r[rpos].size);
 }
 
-void delete() {
+void e_delete() {
   if (!E.r) return;
   // No Op if there is no character to remove
-  if (E.numrow <= 1 && E.x < 1) {
+  if (E.y < 1 && E.x < 1) {
     return;
   }
 
   int row = E.rowoff + E.y;
-  int at = E.coloff + E.x;
+  int at = E.coloff + E.x - 1;
   if (E.x < 1) {
     // if at the beginning of the line and pressed delete, remove the row(\r\n char)
     remove_row(row, at);
@@ -428,7 +431,7 @@ void arrow_key(int key) {
     if (cp < 1) {
       row_factor = -1;
       col_factor = -2;
-      E.x = E.r[E.y-1].size-1;
+      E.x = E.r[E.y-1].size;
     } else {
       // TODO: Move cursor by calculating E.r->size - E.x
       col_factor = -1;
@@ -455,8 +458,6 @@ void arrow_key(int key) {
     if (E.y<1) return;
 
     row_factor = -1;
-    int shift_factor = E.numrow-E.y-1;
-    shift_factor = E.y == 1? E.numrow: shift_factor;
   }
   else if (key == ARROW_DOWN){
     // If trying to go beyond the first line, do nothing
@@ -528,25 +529,31 @@ void handle_key_press() {
     write(STDOUT_FILENO, smessage, strlen(smessage));
     save_file();
   case CTRL_C:
+      xclp_cpy();
     // TODO: Implement redumentary clipboard support. At least,
     // copy-the-whole-file feature
     break;
   case ESC:
     // TODO: some vim-like key-bindings? For future updates
     break;
-  case BACKSPACE:
-    delete ();
-    break;
-  case ENTER:
-    enter_key();
   case ARROW_UP:
   case ARROW_DOWN:
   case ARROW_RIGHT:
   case ARROW_LEFT:
     arrow_key(c);
     break;
+
+  case BACKSPACE:
+    e_delete ();
+    E.save = false;
+    break;
+  case ENTER:
+    enter_key();
+    E.save = false;
+    break;
   default:
     insert_key(c);
+    E.save = false;
     // Handle default case i.e add it to the character buffer
     break;
   }
@@ -586,19 +593,18 @@ void refresh_screen(void) {
 int main(int argc, char *argv[]) {
   // TODO: Accept only 1 argument(i.e. just the program name & nothing else) too
   if (argc < 2) {
-    printf("No Arguments Supplied");
+    printf("Error: \x1b[1;31mNo Arguments Supplied\x1b[0m\n");
+    printf("Usage: ronto -[option] <file_name>\n");
     return -1;
   };
   char c;
   bool file = 0;
-  bool flush = 0;
   char *file_name = NULL;
   extern char *optarg;
   extern int optind;
   while ((c = getopt(argc, argv, "nf:")) != -1) {
     switch (c) {
     case 'n':
-      flush = 1;
       break;
 
     case 'f':
@@ -620,9 +626,8 @@ int main(int argc, char *argv[]) {
       file_name = argv[2];
     printf("%s\n", file_name);
   }
-  if (flush)
-    // Goto alternate screen buffer
-    write(STDOUT_FILENO, "\x1b[?1049h", strlen("\x1b[?1049h"));
+  // Goto alternate screen buffer
+  write(STDOUT_FILENO, "\x1b[?1049h", strlen("\x1b[?1049h"));
 
   atexit(disable_raw_mode);
 

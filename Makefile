@@ -1,16 +1,18 @@
 CC = gcc
 CFLAGS=-Wall -Wpedantic -std=c99 
+
+# Use lld instead of ld
 LDFLAGS=-fuse-ld=lld
 
-main: main.c
-	$(CC) main.c $(CFLAGS) $(LDFLAGS) -o main
+main: ronto.c
+	$(CC) ronto.c $(CFLAGS) $(LDFLAGS) -o ronto
 
-debug: main.c
-	$(CC) main.c $(CFLAGS) $(LDFLAGS) -ggdb -o main
+debug: ronto.c
+	$(CC) ronto.c $(CFLAGS) $(LDFLAGS) -ggdb -o ronto
 
 
-run: main
-	./main
+run: ronto
+	./ronto
 
-clean: main
-	rm main
+clean: ronto
+	rm ronto
