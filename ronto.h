@@ -27,6 +27,12 @@ To use any function, anywhere without the compiler shouting
 
 // struct defs
 
+// Vim-like mode of the editor
+typedef enum {
+  NORMAL,
+  INSERT
+}Mode;
+
 // Describes one row of the Editor
 
 typedef struct row {
@@ -49,13 +55,14 @@ struct Editor {
   int rowoff;
   int screenrow;
   int screencol;
-
-  // File descriptor of the temporary file used for saving data
+  bool save;
+  // File stream of the temporary file used for saving data
   FILE *temp_file;
 
-  bool save;
-  // TODO: change `char *` to `FILE *`
+  // File stream of the opened file 
   FILE *file;
+
+  Mode mode;
 };
 
 // a append buffer to flush everything at once
@@ -86,7 +93,7 @@ int init_editor(char *file);
 void disable_raw_mode(void);
 int enable_raw_mode(void);
 void get_window_size(int *row, int *col);
-char *rowstostr(int *s);
+char *rowstostr(ssize_t *s);
 void xclp_cpy(void);
 void save_file();
 void bf(char *buf, ...);

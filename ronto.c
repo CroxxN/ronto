@@ -1,10 +1,14 @@
 
 #include "ronto.h"
+#include <ctype.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 // #define CTRLQ 17
 // #define CTRLS 19
 // #define BACKSPACE 127
 // #define ENTER 13
+static char FILE_TEMPLATE[] = "Untitled-XXXXXX";
 
 // For printing values to the stdout file descriptor
 void dbg(char *s, ...) {
@@ -98,7 +102,15 @@ int init_editor(char *file) {
       E.screencol = 0;
   E.save = false;
   E.r = NULL;
-  E.file = fopen(file, "w");
+  // if (file){
+  //   E.file = fopen(file, "w");
+  // }else {
+    int fd = mkstemp(FILE_TEMPLATE);
+    E.file = fdopen(fd, "w");
+  // }
+
+  // Actually use this line
+  // E.mode = NORMAL;
   return 0;
 }
 
@@ -119,12 +131,14 @@ void disable_raw_mode() {
   free(term.original_term);
   free(E.r);
   // Clear the alternate screen
-  write(STDOUT_FILENO, "\x1b[H\x1b[2J", 7);
+  bf("\x1b[H\x1b[2J");
+  // write(STDOUT_FILENO, "\x1b[H\x1b[2J", 7);
   // Switch back to normal screen -- NOT Specifically VT100, but should work on
   // most modern terminals and emulators. If the terminal is not capable of such
   // feature, just discard the escape sequence.
-  write(STDOUT_FILENO, "\x1b[?1049l", strlen("\x1b[?1049l"));
-
+  bf("\x1b[?1049l");
+  // write(STDOUT_FILENO, "\x1b[?1049l", strlen("\x1b[?1049l"));
+  bf_flush();
   // `\x1b[1;32m` is just escape sequence for printing bold, green colored text
   printf("\n\x1b[1;32mExited Successfully from Ronto!\x1b[0m\n");
 }
@@ -178,45 +192,58 @@ void get_window_size(int *row, int *col) {
   *col = w.ws_col;
 }
 
-char *rowstostr(int *s){
-  int size = 0;
-  for (int i=0; i<E.numrow-1; i++)
+// Collapse all `E->r`s to a single string
+char *rowstostr(ssize_t *s){
+  ssize_t size = 0;
+  for (int i=0; i<E.numrow; i++)
     size += E.r[i].size;
   *s = size;
   char *strs;
   strs = malloc(size);
   assert(strs!=NULL);
 
-  for (int i=0; i<E.numrow-1; i++){
+  for (int i=0; i<E.numrow; i++){
     assert(E.r[i].content!=NULL);
     memcpy(strs, E.r[i].content, E.r[i].size);
     strs+=E.r[i].size;
   }
   *strs = '\0';
+  strs-=size;
   return strs;
 }
 
-// TODO: Implement copying functionality
+// TODO: Done
 void xclp_cpy(void) {
-  int size = 0;
+  ssize_t size = 0;
   char *s = rowstostr(&size);
-  write(STDIN_FILENO, s, size);
-  // TODO: Fix bug
-  int status = system("xclip -selection clipboard");
-  // TODO: Check the status code
-  (void )status;
 
-  free(s);
+  // invoke xclip command. If xclip doesn't exist, silently return;
+  FILE *xclip_cli = popen("xclip -selection clipboard", "w");
+  if (xclip_cli != NULL)
+    return;
+
+  fprintf(xclip_cli, "%s", s);
+
+  // ignore returned value
+  pclose(xclip_cli);
+
   return;
+}
+
+void save_file_temp(ssize_t size, char *strings){
+  fputs(strings, E.temp_file);
 }
 
 // TODO: Implement save_file functionality
 void save_file() {
-  int size = 0;
+  ssize_t size = 0;
   char *strings = rowstostr(&size);
   // TODO: Error handeling
-  if (!E.file) return;
-  fwrite(strings, size, 1, E.file);
+  // if (!E.file) {
+  //   save_file_temp(size, strings);
+  //   return;
+  // }
+  fputs(strings, E.file);
   // For now, just indicate that we have saved it.
   E.save = true;
   free(strings);
@@ -460,15 +487,17 @@ void arrow_key(int key) {
     row_factor = -1;
   }
   else if (key == ARROW_DOWN){
-    // If trying to go beyond the first line, do nothing
-    if (E.y>=E.numrow) return;
-
+    // If trying to go beyond the last line, do nothing
+    if (E.y>=E.numrow-1) return;
+    if (E.y==E.numrow-2 && E.x>E.r[rp+1].size){
+      E.r[rp+1].size+=2;
+    }
     row_factor = 1;
   }
 
   E.x += col_factor;
   E.y += row_factor;
-  if (E.x>E.r[E.y].size) E.x = E.r[E.y].size-2;
+  if (E.x>=E.r[E.y].size-2) E.x = E.r[E.y].size-2;
 }
 
 // Carriage Return + Newline
@@ -626,8 +655,10 @@ int main(int argc, char *argv[]) {
       file_name = argv[2];
     printf("%s\n", file_name);
   }
-  // Goto alternate screen buffer
-  write(STDOUT_FILENO, "\x1b[?1049h", strlen("\x1b[?1049h"));
+  // Goto alternate screen buffer & clear put the cursor to home position
+  bf("\x1b[?1049h\x1b[H");
+  bf_flush();
+  // write(STDOUT_FILENO, "\x1b[?1049h", strlen("\x1b[?1049h"));
 
   atexit(disable_raw_mode);
 
