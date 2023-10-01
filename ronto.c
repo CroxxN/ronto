@@ -489,15 +489,22 @@ void arrow_key(int key) {
   else if (key == ARROW_DOWN){
     // If trying to go beyond the last line, do nothing
     if (E.y>=E.numrow-1) return;
-    if (E.y==E.numrow-2 && E.x>E.r[rp+1].size){
-      E.r[rp+1].size+=2;
-    }
     row_factor = 1;
   }
 
   E.x += col_factor;
   E.y += row_factor;
-  if (E.x>=E.r[E.y].size-2) E.x = E.r[E.y].size-2;
+
+  // The last line doesn't have a `\r\n` char. 
+  // So we don't subract 2 from the row size
+  if (E.y >= E.numrow - 1) {
+    if (E.x > E.r[E.y].size )
+      E.x = E.r[E.y].size;
+    return;
+  }
+
+  if (E.x >= E.r[E.y].size - 2)
+    E.x = E.r[E.y].size - 2;
 }
 
 // Carriage Return + Newline
