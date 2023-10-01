@@ -1,8 +1,8 @@
 
 #include "ronto.h"
-#include <ctype.h>
-#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
 // #define CTRLQ 17
 // #define CTRLS 19
@@ -110,7 +110,7 @@ int init_editor(char *file) {
   // }
 
   // Actually use this line
-  // E.mode = NORMAL;
+  E.mode = INSERT;
   return 0;
 }
 
@@ -212,7 +212,7 @@ char *rowstostr(ssize_t *s){
   return strs;
 }
 
-// TODO: Done
+// DONE
 void xclp_cpy(void) {
   ssize_t size = 0;
   char *s = rowstostr(&size);
@@ -234,7 +234,7 @@ void save_file_temp(ssize_t size, char *strings){
   fputs(strings, E.temp_file);
 }
 
-// TODO: Implement save_file functionality
+// DONE
 void save_file() {
   ssize_t size = 0;
   char *strings = rowstostr(&size);
@@ -266,7 +266,8 @@ void bf(char *buf, ...) {
   b.seq = realloc(b.seq, b.l + buf_len);
   memcpy(b.seq + b.l, f_buf, buf_len);
   b.l += buf_len;
-
+  free(f_buf);
+  f_buf = NULL;
   va_end(v);
 }
 
@@ -291,8 +292,11 @@ int add_row(int pos, char *buf, ssize_t len) {
   // Is it pos > E.numrow or pos >= E.numrow
   if (pos < E.numrow) {
     // dbg("Run");
+    // FIX:  BUG
     memmove(E.r + pos + 1, E.r + pos,
             sizeof(E.r[0]) * (E.numrow - pos)); // Implicit object creation
+    E.r[pos+1].content = realloc(E.r[pos+1].content,2);
+    memcpy(E.r[pos+1].content, "\r\n", 2);
     for (int i = pos + 1; i < E.numrow; i++)
       E.r[i].idx++;
   }
@@ -302,7 +306,6 @@ int add_row(int pos, char *buf, ssize_t len) {
   E.r[pos].render = NULL;
   E.r[pos].render_size = 0;
   E.numrow++;
-  // TODO: Update the Row now. i.e. expand raw characters to render field
   return 0;
 }
 
@@ -431,8 +434,7 @@ void shift_cursor(void) {
   return;
 }
 
-// TODO: complete
-// TO_FIX: Proper cursor display
+// DONE
 void arrow_key(int key) {
 
   // If at the begginning of the editor, do nothing
@@ -513,49 +515,80 @@ char *smessage = "\r\nPressed Control + S, so saving\r\n";
 
 // Maybe some editor config or other parameter
 int key_up(void) {
-  char c;
   char seq[3];
   int num;
-  while ((num = read(term.fd, &c, 1)) == 0)
+
+  /* Read three sequences from the terminal input. Useful to separate ESC
+  key from arrow, home, end, et al. keys. It's like a timeout. Read 3 bytes,
+  if only 1 byte is read, and the first byte is <ESC> key, switch to normal mode,
+  else process the sequent bytes.
+  */
+  while ((num = read(term.fd, &seq, 3)) == 0)
     ;
   assert(num != -1);
-  switch (c) {
-  // DO Something
-  case ESC:
-    if (read(term.fd, seq, 1) == 0)
-      return ESC;
-    if (read(term.fd, seq + 1, 1) == 0)
-      return ESC;
-    if (seq[0] != '[') {
-      // DO SOMETHING
-      // Page up/down, home, etc shise
-    } else {
-      switch (seq[1]) {
-      case 'A':
-        return ARROW_UP;
+  if (E.mode == INSERT)
+    switch (seq[0]) {
+    // DO Something
+    case ESC:
+      // if (read(term.fd, seq, 1) == 0) {
+      //   E.mode = NORMAL;
+      //   return ESC;
+      // }
+      // if (read(term.fd, seq + 1, 1) == 0) {
+      //   E.mode = NORMAL;
+      //   return ESC;
+      // }
+      if (num == 1) return ESC;
+      if (seq[1] != '[') {
+        // DO SOMETHING
+        // Page up/down, home, etc shise
+      } else {
+        switch (seq[2]) {
+        case 'A':
+          return ARROW_UP;
 
-      case 'B':
-        return ARROW_DOWN;
-      case 'C':
-        return ARROW_RIGHT;
-      case 'D':
-        return ARROW_LEFT;
+        case 'B':
+          return ARROW_DOWN;
+        case 'C':
+          return ARROW_RIGHT;
+        case 'D':
+          return ARROW_LEFT;
+        }
       }
+      // Handle Escape Sequence
+      return -1;
+    default:
+      return seq[0];
     }
-    // Handle Escape Sequence
-    return 0;
-    break;
-  default:
-    // dbg("Pressed: %d", c);
-    return c;
-    break;
-  }
+  else
+    switch (seq[0]) {
+      case 'h':
+        return ARROW_LEFT;
+      case 'l':
+        return ARROW_RIGHT;
+      case 'j':
+        return ARROW_DOWN;
+      case 'k':
+        return ARROW_UP;
+      case 'i':
+        E.mode = INSERT;
+        break;
+    // TODO: remove this temporary "fix"
+      default:
+        return seq[0];
+    }
+  // no-op
+  return -1;
 }
 
 // FEAT: rudimentary functionality complete
 void handle_key_press() {
   int c = key_up();
   switch (c) {
+    // no-op
+  case -1:
+    break;
+    break;
   case CTRL_Q:
     write(STDOUT_FILENO, qmessage, strlen(qmessage));
     exit(0);
@@ -566,11 +599,9 @@ void handle_key_press() {
     save_file();
   case CTRL_C:
       xclp_cpy();
-    // TODO: Implement redumentary clipboard support. At least,
-    // copy-the-whole-file feature
     break;
   case ESC:
-    // TODO: some vim-like key-bindings? For future updates
+    E.mode = NORMAL;
     break;
   case ARROW_UP:
   case ARROW_DOWN:
@@ -588,6 +619,7 @@ void handle_key_press() {
     E.save = false;
     break;
   default:
+    if (E.mode == NORMAL) return;
     insert_key(c);
     E.save = false;
     // Handle default case i.e add it to the character buffer
@@ -605,21 +637,32 @@ void expand_rows(void) {
     //   E.r[i].content = realloc(E.r[i].content, sizeof(E.r[i].content)+2);
     // }
     write(STDOUT_FILENO, E.r[i].content, E.r[i].size);
+    // bf((ssize_t *)&E.r[i].size, E.r[i].content);
   }
 }
 
 void refresh_screen(void) {
-  // As we move cursor to home each time during refresh, we just erase from
-  // current line i.e. the first, to the last line
-  // TODO: Modify for view buffers
-  // We can't directly flush everything after the expand_rows call. If we're to
-  // do so, we need to copy the string from content to the flush buffer.
+  /*
+  As we move cursor to home each time during refresh, we just erase from
+  current line i.e. the first, to the last line
+  TODO: Modify for view buffers
+  We can't directly flush everything after the expand_rows call. If we're to
+  do so, we need to copy the string from content to the flush buffer.
+  */
+
+  // Flush pre-existing data
+  // bf_flush();
+  // bf(NULL, "\x1b[?25l");
+  // bf_flush();
+
   char *write_buf = "\x1b[H\x1b[J";
   write(STDOUT_FILENO, write_buf, strlen(write_buf));
+  // bf(NULL, "\x1b[H\x1b[J");
   expand_rows();
 
   // Shift cursor to the current postion
   shift_cursor();
+  // bf(NULL, "\x1b[?25h");
   bf_flush();
   return;
 }
@@ -663,7 +706,7 @@ int main(int argc, char *argv[]) {
     printf("%s\n", file_name);
   }
   // Goto alternate screen buffer & clear put the cursor to home position
-  bf("\x1b[?1049h\x1b[H");
+  bf(NULL, "\x1b[?1049h\x1b[H");
   bf_flush();
   // write(STDOUT_FILENO, "\x1b[?1049h", strlen("\x1b[?1049h"));
 
