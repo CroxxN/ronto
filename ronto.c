@@ -1,5 +1,6 @@
 
 #include "ronto.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -92,21 +93,18 @@ int init_editor(char *file) {
     return -1;
   }
 
-  FILE *t = tmpfile();
   // verify that t is not NULL and `tmpfile()` call succeded
-  assert(t!=NULL);
-  E.temp_file = t;
+  E.temp_file = NULL;
 
   // yes. DRY code for you.
   E.x =  E.y = E.numrow = E.coloff = E.rowoff = E.screenrow =
       E.screencol = 0;
   E.save = false;
   E.r = NULL;
+  E.file = NULL;
   // if (file){
   //   E.file = fopen(file, "w");
   // }else {
-    int fd = mkstemp(FILE_TEMPLATE);
-    E.file = fdopen(fd, "w");
   // }
 
   // Actually use this line
@@ -231,11 +229,18 @@ void xclp_cpy(void) {
 }
 
 void save_file_temp(ssize_t size, char *strings){
+  if (!E.temp_file){
+    E.temp_file = tmpfile();
+  }
   fputs(strings, E.temp_file);
 }
 
 // DONE
 void save_file() {
+  if (!E.file){
+    int fd = mkstemp(FILE_TEMPLATE);
+    E.file = fdopen(fd, "w");
+  }
   ssize_t size = 0;
   char *strings = rowstostr(&size);
   // TODO: Error handeling
@@ -254,11 +259,13 @@ void save_file() {
 // A buffer formatter. It appends messages to be sent to the std output, and
 // flushes them all at once.
 void bf(char *buf, ...) {
+  int buf_len = strlen(buf);
+
+  if (buf_len<1) return;
   // Grab the variadic arguments
   va_list v;
   va_start(v, buf);
-
-  int buf_len = strlen(buf);
+  
   char *f_buf = malloc(buf_len);
   vsprintf(f_buf, buf, v);
   if (!f_buf)
@@ -267,7 +274,6 @@ void bf(char *buf, ...) {
   memcpy(b.seq + b.l, f_buf, buf_len);
   b.l += buf_len;
   free(f_buf);
-  f_buf = NULL;
   va_end(v);
 }
 
@@ -706,7 +712,7 @@ int main(int argc, char *argv[]) {
     printf("%s\n", file_name);
   }
   // Goto alternate screen buffer & clear put the cursor to home position
-  bf(NULL, "\x1b[?1049h\x1b[H");
+  bf("\x1b[?1049h\x1b[H");
   bf_flush();
   // write(STDOUT_FILENO, "\x1b[?1049h", strlen("\x1b[?1049h"));
 
