@@ -320,13 +320,30 @@ void remove_row(int row, int at){
   //   // TODO: Implement removing the \r\n sequences from the previous row without removing everything
   //   return;
   // }
-  E.x = E.r[row - 1].size - 2;
+  // TODO: Make the code dry
+  // if (E.r[row].size < 1){
+
+  //   E.x = E.r[row - 1].size - 2;
+  //   E.y--;
+  //   E.numrow--;
+  //   row--;
+  //   E.r[E.y].size -= 2;
+  //   E.r[E.y].content = realloc(E.r[E.y].content, E.r[E.y].size);
+  //   E.r = realloc(E.r, sizeof(row)*E.numrow);
+  //   return;
+  // }
+  E.x = E.r[row-1].size - 2; // WORKS!
+
+  int res_size = E.r[row-1].size + E.r[row].size - 2;
+  E.r[row-1].content = realloc(E.r[row-1].content, res_size); // works
+  memmove(E.r[row-1].content+E.r[row-1].size-2,E.r[row].content, E.r[row].size); 
+  E.r[row-1].size = res_size; // works
+
+  // STUPID BUG: FIXED
+  memmove(E.r + row, E.r + row + 1, sizeof(E.r[0]) * (E.numrow - row - 1)); 
   E.y--;
   E.numrow--;
-  row--;
-  E.r[E.y].size -= 2;
-  E.r[E.y].content = realloc(E.r[E.y].content, E.r[E.y].size);
-  E.r = realloc(E.r, E.numrow);
+  E.r = realloc(E.r, sizeof(E.r[0])*E.numrow);
 }
 
 // TODO: Implemet adding rows, NULL checking etc, here itself
@@ -396,7 +413,7 @@ void e_delete() {
 
   int row = E.rowoff + E.y;
   int at = E.coloff + E.x - 1;
-  if (E.x < 1) {
+  if (at < 1) {
     // if at the beginning of the line and pressed delete, remove the row(\r\n char)
     remove_row(row, at);
     return;
