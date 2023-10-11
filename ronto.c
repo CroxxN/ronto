@@ -321,17 +321,17 @@ void remove_row(int row, int at){
   //   return;
   // }
   // TODO: Make the code dry
-  // if (E.r[row].size < 1){
+  if (E.r[row].size < 1){
 
-  //   E.x = E.r[row - 1].size - 2;
-  //   E.y--;
-  //   E.numrow--;
-  //   row--;
-  //   E.r[E.y].size -= 2;
-  //   E.r[E.y].content = realloc(E.r[E.y].content, E.r[E.y].size);
-  //   E.r = realloc(E.r, sizeof(row)*E.numrow);
-  //   return;
-  // }
+    E.x = E.r[row - 1].size - 2;
+    E.y--;
+    E.numrow--;
+    row--;
+    E.r[E.y].size -= 2;
+    E.r[E.y].content = realloc(E.r[E.y].content, E.r[E.y].size);
+    E.r = realloc(E.r, sizeof(E.r[0])*E.numrow);
+    return;
+  }
   E.x = E.r[row-1].size - 2; // WORKS!
 
   int res_size = E.r[row-1].size + E.r[row].size - 2;
