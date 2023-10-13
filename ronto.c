@@ -92,7 +92,9 @@ int init_editor(char *file) {
     printf("Failed Initialization\n");
     return -1;
   }
-
+  // Set to no-text-wrap mode
+  // bf("\x1b[7l");
+  // bf_flush();
   // verify that t is not NULL and `tmpfile()` call succeded
   E.temp_file = NULL;
 
@@ -135,6 +137,7 @@ void disable_raw_mode() {
   // most modern terminals and emulators. If the terminal is not capable of such
   // feature, just discard the escape sequence.
   bf("\x1b[?1049l");
+  bf("\x1b[7h");
   // write(STDOUT_FILENO, "\x1b[?1049l", strlen("\x1b[?1049l"));
   bf_flush();
   // `\x1b[1;32m` is just escape sequence for printing bold, green colored text
@@ -307,11 +310,12 @@ int add_row(int pos, char *buf, ssize_t len) {
       E.r[i].idx++;
   }
   E.r[pos].size = len;
-  E.r[pos].content = malloc(len + 1); // + 1 for '\0'
-  memcpy(E.r[pos].content, buf, len);
+  E.r[pos].content = malloc(len); // + 1 for '\0'
   E.r[pos].render = NULL;
   E.r[pos].render_size = 0;
   E.numrow++;
+  if (!buf) return 0;
+  memcpy(E.r[pos].content, buf, len);
   return 0;
 }
 
@@ -427,16 +431,22 @@ void e_delete() {
 void enter_key(void) {
   int rp = E.rowoff + E.y;
   // Handle in-between line enter key pressing
-  // int cp = E.coloff + E.x;
+  int cp = E.coloff + E.x;
   if (!E.r) {
     add_row(rp, "", 0);
   }
   E.r[rp].content = realloc(E.r[rp].content, E.r[rp].size + 2);
   assert(E.r[rp].content != NULL);
-
+  int size = E.r[rp].size-cp;
+  char *buf = NULL;
+  if (cp<size){
+    buf = E.r[rp].content + cp + 1;
+    // add_row(rp+1, E.r[rp].content + cp + 1, size);
+  }
+  // add_row(rp + 1, "", 0);
   // Append carriage return & newline to every row when enter key is pressed
   memcpy(E.r[rp].content + E.r[rp].size, "\r\n", 2);
-  add_row(rp + 1, "", 0);
+  add_row(rp + 1, buf, size);
   E.y++;
   E.x = 0;
   E.r[rp].size += 2;
@@ -730,6 +740,7 @@ int main(int argc, char *argv[]) {
   }
   // Goto alternate screen buffer & clear put the cursor to home position
   bf("\x1b[?1049h\x1b[H");
+  bf("\x1b[7l");
   bf_flush();
   // write(STDOUT_FILENO, "\x1b[?1049h", strlen("\x1b[?1049h"));
 
