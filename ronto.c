@@ -1,5 +1,6 @@
 
 #include "ronto.h"
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -48,6 +49,12 @@ static struct Terminal term = {NULL, 0, STDIN_FILENO};
 
 // Fails when the `string` is binary or non-alphanumeric & non-punctuation(._-)
 
+void editor_log(char* s, ...){
+  va_list v;
+  va_start(v, s);
+  vfprintf(E.log, s, v);
+}
+
 int isalnum_str(char *string) {
   for (int i = 0; i < strlen(string); i++)
     if (iscntrl(string[i]))
@@ -57,18 +64,19 @@ int isalnum_str(char *string) {
 }
 
 int get_cursor_position(int *row, int *col) {
-  int i = 0;
   char buf[8];
   if (write(STDOUT_FILENO, "\x1b[6n", 4) != 4)
     return -1;
 
-  while (i < sizeof(buf) - 1) {
-    if (read(STDIN_FILENO, buf + i, 1) != 1)
-      return -1;
-    if (buf[i] == 'R')
-      break;
-    i++;
-  }
+  // while (i < sizeof(buf) - 1) {
+  //   if (read(STDIN_FILENO, buf + i, 1) != 1)
+  //     return -1;
+  //   if (buf[i] == 'R')
+  //     break;
+  //   i++;
+  // }
+  read(STDIN_FILENO, buf, 6);
+  editor_log(buf);
   if (buf[0] != ESC || buf[1] != 27)
     return -1;
   if (sscanf(buf + 2, "%d;%d", row, col) != 2)
@@ -104,6 +112,8 @@ int init_editor(char *file) {
   E.save = false;
   E.r = NULL;
   E.file = NULL;
+  E.log = fopen("log", "a");
+  get_window_size(&E.screenrow, &E.screencol);
   // if (file){
   //   E.file = fopen(file, "w");
   // }else {
@@ -183,6 +193,14 @@ void get_window_size(int *row, int *col) {
   if (ioctl(term.fd, TIOCGWINSZ, &w) == -1) {
     // Do SOMETHING
     // Handle when ioctl fails
+    int crow, ccol;
+    get_cursor_position(&crow, &ccol);
+    bf("\x1b[999C\x1b[999B");
+    bf_flush();
+    // write(STDOUT_FILENO, "\x1b[999C\x1b[999B", 8);
+    get_cursor_position(row, col);
+    bf("\x1b[%d;%dH", crow, ccol);
+    bf_flush();
   }
 
   /*
@@ -319,12 +337,9 @@ int add_row(int pos, char *buf, ssize_t len) {
   return 0;
 }
 
-void remove_row(int row, int at){
-  // if (row < E.numrow){
-  //   // TODO: Implement removing the \r\n sequences from the previous row without removing everything
-  //   return;
-  // }
+void remove_row(int row){
   // TODO: Make the code dry
+  if (!E.r[row].content) return;
   if (E.r[row].size < 1){
 
     E.x = E.r[row - 1].size - 2;
@@ -396,7 +411,7 @@ void insert_key(char c) {
 
 // TODO: Fix bugs
 void delete_at(int rpos, int at) {
-  if (rpos == 0 && at < 0) {
+  if (rpos == 0 && at < 1) {
     return;
   };
   // TODO: Don't call realloc so often?
@@ -417,9 +432,10 @@ void e_delete() {
 
   int row = E.rowoff + E.y;
   int at = E.coloff + E.x - 1;
-  if (at < 1) {
+
+  if (at < 0 && row>0) {
     // if at the beginning of the line and pressed delete, remove the row(\r\n char)
-    remove_row(row, at);
+    remove_row(row);
     return;
   }
   E.x--;
@@ -434,6 +450,7 @@ void enter_key(void) {
   int cp = E.coloff + E.x;
   if (!E.r) {
     add_row(rp, "", 0);
+    return;
   }
   E.r[rp].content = realloc(E.r[rp].content, E.r[rp].size + 2);
   assert(E.r[rp].content != NULL);
@@ -665,12 +682,8 @@ void expand_rows(void) {
   for (int i = 0; i < E.numrow; i++) {
     if (E.r[i].content == NULL)
       return;
-    // TODO: Revise this logic
-    // if (sizeof(E.r[i].content)<E.r[i].size+2){
-    //   E.r[i].content = realloc(E.r[i].content, sizeof(E.r[i].content)+2);
-    // }
     write(STDOUT_FILENO, E.r[i].content, E.r[i].size);
-    // bf((ssize_t *)&E.r[i].size, E.r[i].content);
+    // bf(E.r[i].content, E.r[i].size);
   }
 }
 
@@ -740,14 +753,17 @@ int main(int argc, char *argv[]) {
   }
   // Goto alternate screen buffer & clear put the cursor to home position
   bf("\x1b[?1049h\x1b[H");
-  bf("\x1b[7l");
+  // bf("\x1b[7l");
   bf_flush();
   // write(STDOUT_FILENO, "\x1b[?1049h", strlen("\x1b[?1049h"));
 
   atexit(disable_raw_mode);
 
   init_editor(file_name);
+  // int x, y;
   enable_raw_mode();
+  // get_cursor_position(&y, &x);
+  // editor_log("row: %d, col: %d\n", y, x);
   while (1) {
     handle_key_press();
     refresh_screen();

@@ -62,6 +62,7 @@ struct Editor {
   // File stream of the opened file 
   FILE *file;
 
+  FILE *log;
   Mode mode;
 };
 
@@ -92,6 +93,7 @@ int get_cursor_position(int *row, int *col);
 int init_editor(char *file);
 void disable_raw_mode(void);
 int enable_raw_mode(void);
+void query_cursor_pos(int *x, int *y);
 void get_window_size(int *row, int *col);
 char *rowstostr(ssize_t *s);
 void xclp_cpy(void);
@@ -99,7 +101,7 @@ void save_file();
 void bf(char *buf, ...);
 void bf_flush(void);
 int add_row(int pos, char* buf, ssize_t len);
-void remove_row(int row, int at);
+void remove_row(int row);
 void add_char_at(char c, int at, int rowpos);
 void insert_key(char c);
 void delete_at(int rpos, int at);
