@@ -443,6 +443,12 @@ void e_delete() {
   delete_at(row, at);
 }
 
+void enter_between(int row, int col){
+  if (row==E.numrow){
+    add_row(row, E.r[row].content+col, E.r[row].size-col);
+  }
+}
+
 // TODO: Fix bugs
 void enter_key(void) {
   int rp = E.rowoff + E.y;
