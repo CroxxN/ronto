@@ -1,4 +1,5 @@
 
+// TODO: Clean up these reduntant includes
 #include "ronto.h"
 #include <stdarg.h>
 #include <stdio.h>
@@ -6,10 +7,6 @@
 #include <string.h>
 #include <unistd.h>
 
-// #define CTRLQ 17
-// #define CTRLS 19
-// #define BACKSPACE 127
-// #define ENTER 13
 static char FILE_TEMPLATE[] = "Untitled-XXXXXX";
 
 // For printing values to the stdout file descriptor
@@ -45,15 +42,16 @@ static struct buf b = {NULL, 0};
 
 static struct Terminal term = {NULL, 0, STDIN_FILENO};
 
-// Checks whether a string is wholly alphanumeric or punctuation-ic subset
-
-// Fails when the `string` is binary or non-alphanumeric & non-punctuation(._-)
 
 void editor_log(char* s, ...){
   va_list v;
   va_start(v, s);
   vfprintf(E.log, s, v);
 }
+
+// Checks whether a string is wholly alphanumeric or punctuation-ic subset
+
+// Fails when the `string` is binary or non-alphanumeric & non-punctuation(._-)
 
 int isalnum_str(char *string) {
   for (int i = 0; i < strlen(string); i++)
@@ -68,15 +66,8 @@ int get_cursor_position(int *row, int *col) {
   if (write(STDOUT_FILENO, "\x1b[6n", 4) != 4)
     return -1;
 
-  // while (i < sizeof(buf) - 1) {
-  //   if (read(STDIN_FILENO, buf + i, 1) != 1)
-  //     return -1;
-  //   if (buf[i] == 'R')
-  //     break;
-  //   i++;
-  // }
   read(STDIN_FILENO, buf, 6);
-  editor_log(buf);
+  editor_log(buf, "\n");
   if (buf[0] != ESC || buf[1] != 27)
     return -1;
   if (sscanf(buf + 2, "%d;%d", row, col) != 2)
@@ -86,7 +77,6 @@ int get_cursor_position(int *row, int *col) {
 }
 
 int init_editor(char *file) {
-  // struct termios orig;
 
   // Allocates Memory for the original_term termios struct. Fails if the malloc
   // fails
@@ -100,9 +90,6 @@ int init_editor(char *file) {
     printf("Failed Initialization\n");
     return -1;
   }
-  // Set to no-text-wrap mode
-  // bf("\x1b[7l");
-  // bf_flush();
   // verify that t is not NULL and `tmpfile()` call succeded
   E.temp_file = NULL;
 
@@ -114,10 +101,6 @@ int init_editor(char *file) {
   E.file = NULL;
   E.log = fopen("log", "a");
   get_window_size(&E.screenrow, &E.screencol);
-  // if (file){
-  //   E.file = fopen(file, "w");
-  // }else {
-  // }
 
   // Actually use this line
   E.mode = INSERT;
@@ -320,12 +303,18 @@ int add_row(int pos, char *buf, ssize_t len) {
   if (pos < E.numrow) {
     // dbg("Run");
     // FIX:  BUG
-    memmove(E.r + pos + 1, E.r + pos,
-            sizeof(E.r[0]) * (E.numrow - pos)); // Implicit object creation
-    E.r[pos+1].content = realloc(E.r[pos+1].content,2);
-    memcpy(E.r[pos+1].content, "\r\n", 2);
-    for (int i = pos + 1; i < E.numrow; i++)
-      E.r[i].idx++;
+    // memmove(E.r + pos + 1, E.r + pos,
+    //         sizeof(E.r[0]) * (E.numrow - pos)); // Implicit object creation
+    // E.r[pos+1].content = realloc(E.r[pos+1].content,2);
+    // memcpy(E.r[pos+1].content, "\r\n", 2);
+    // for (int i = pos + 1; i < E.numrow; i++)
+    //   E.r[i].idx++;
+    memmove(E.r + pos + 2, E.r + pos + 1, sizeof(E.r[0])*(E.numrow - pos -1));
+    E.r[pos+1].content = malloc(len);
+    memcpy(E.r[pos+1].content, buf, len);
+    E.r[pos+1].size = len;
+    E.numrow++;
+    return 0;
   }
   E.r[pos].size = len;
   E.r[pos].content = malloc(len); // + 1 for '\0'
@@ -444,9 +433,11 @@ void e_delete() {
 }
 
 void enter_between(int row, int col){
-  if (row==E.numrow){
-    add_row(row, E.r[row].content+col, E.r[row].size-col);
-  }
+  int new_size = E.r[row].size - col;
+  add_row(row, E.r[row].content + col, new_size);
+  E.r[row].content = realloc(E.r[row].content, col + 2);
+  memcpy(E.r[row].content + col, "\r\n", 2);
+  E.r[row].size = col + 2;
 }
 
 // TODO: Fix bugs
@@ -458,6 +449,11 @@ void enter_key(void) {
     add_row(rp, "", 0);
     return;
   }
+  if (cp < E.r[rp].size-1){
+    enter_between(rp, cp);
+    return;
+  }
+
   E.r[rp].content = realloc(E.r[rp].content, E.r[rp].size + 2);
   assert(E.r[rp].content != NULL);
   int size = E.r[rp].size-cp;
@@ -586,14 +582,6 @@ int key_up(void) {
     switch (seq[0]) {
     // DO Something
     case ESC:
-      // if (read(term.fd, seq, 1) == 0) {
-      //   E.mode = NORMAL;
-      //   return ESC;
-      // }
-      // if (read(term.fd, seq + 1, 1) == 0) {
-      //   E.mode = NORMAL;
-      //   return ESC;
-      // }
       if (num == 1) return ESC;
       if (seq[1] != '[') {
         // DO SOMETHING
@@ -629,6 +617,16 @@ int key_up(void) {
       case 'i':
         E.mode = INSERT;
         break;
+      case 'I':
+        E.x = 0;
+        E.mode = INSERT;
+        break;
+      case 'A':
+        E.x = (E.y >= E.numrow - 1) ? E.r[E.y].size : E.r[E.y].size - 2;
+        E.mode = INSERT;
+        break;
+      case 'x':
+        return BACKSPACE;
     // TODO: remove this temporary "fix"
       default:
         return seq[0];
@@ -638,48 +636,49 @@ int key_up(void) {
 }
 
 // FEAT: rudimentary functionality complete
-void handle_key_press() {
+int handle_key_press() {
   int c = key_up();
   switch (c) {
     // no-op
   case -1:
-    break;
-    break;
+    return 0;
+    // break;
   case CTRL_Q:
     write(STDOUT_FILENO, qmessage, strlen(qmessage));
     exit(0);
-    break;
+    // break;
 
   case CTRL_S:
     write(STDOUT_FILENO, smessage, strlen(smessage));
     save_file();
+    return 0;
   case CTRL_C:
       xclp_cpy();
-    break;
+    return 0;
   case ESC:
     E.mode = NORMAL;
-    break;
+    return 0;
   case ARROW_UP:
   case ARROW_DOWN:
   case ARROW_RIGHT:
   case ARROW_LEFT:
     arrow_key(c);
-    break;
+    return 0;
 
   case BACKSPACE:
     e_delete ();
     E.save = false;
-    break;
+    return 1;
   case ENTER:
     enter_key();
     E.save = false;
-    break;
+    return 1;
   default:
-    if (E.mode == NORMAL) return;
+    if (E.mode == NORMAL) return 0;
     insert_key(c);
     E.save = false;
     // Handle default case i.e add it to the character buffer
-    break;
+    return 1;
   }
 }
 
@@ -771,8 +770,12 @@ int main(int argc, char *argv[]) {
   // get_cursor_position(&y, &x);
   // editor_log("row: %d, col: %d\n", y, x);
   while (1) {
-    handle_key_press();
-    refresh_screen();
+    if (handle_key_press() == 1)
+      refresh_screen();
+    else 
+      shift_cursor();
+
+    bf_flush();
   }
   return 0;
 }

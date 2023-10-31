@@ -88,6 +88,7 @@ struct Terminal {
 
 // Function defs: 
 
+void editor_log(char *s, ...);
 int isalnum_str(char *string);
 int get_cursor_position(int *row, int *col);
 int init_editor(char *file);
@@ -107,10 +108,12 @@ void insert_key(char c);
 void delete_at(int rpos, int at);
 void e_delete(void);
 void enter_key(void);
+void enter_between(int row, int col);
 void shift_cursor(void);
+void set_cursor(int row, int pos);
 void arrow_key(int key);
 int key_up(void);
-void handle_key_press(void);
+int handle_key_press(void);
 void expand_rows(void);
 void refresh_screen(void);
 
