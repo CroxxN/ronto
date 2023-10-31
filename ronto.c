@@ -2,6 +2,7 @@
 // TODO: Clean up these reduntant includes
 #include "ronto.h"
 #include <stdarg.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -101,6 +102,7 @@ int init_editor(char *file) {
   E.file = NULL;
   E.log = fopen("log", "a");
   get_window_size(&E.screenrow, &E.screencol);
+  E.file = fopen(file, "rw");
 
   // Actually use this line
   E.mode = INSERT;
@@ -219,15 +221,15 @@ void xclp_cpy(void) {
   ssize_t size = 0;
   char *s = rowstostr(&size);
 
-  // invoke xclip command. If xclip doesn't exist, silently return;
-  FILE *xclip_cli = popen("xclip -selection clipboard", "w");
-  if (xclip_cli != NULL)
-    return;
+  // Use xclip for ~x11 and wl-copy for ~wayland
+  FILE *clipboard = popen("xclip -selection clipboard", "w");
+  if (clipboard != NULL)
+    clipboard = popen("wl-copy", "w");
 
-  fprintf(xclip_cli, "%s", s);
+  fprintf(clipboard, "%s", s);
 
   // ignore returned value
-  pclose(xclip_cli);
+  pclose(clipboard);
 
   return;
 }
@@ -258,6 +260,16 @@ void save_file() {
   free(strings);
   strings = NULL;
   return;
+}
+
+void bootstrap_file(FILE *f){
+  char *lines;
+  size_t file_size;
+  fseek(f, 0, SEEK_END);
+  file_size = ftell(f);
+  fseek(f, 0, SEEK_SET);
+  fread(lines, 1, file_size, f);
+  editor_log("%d\n", file_size);
 }
 
 // A buffer formatter. It appends messages to be sent to the std output, and
@@ -767,6 +779,7 @@ int main(int argc, char *argv[]) {
   init_editor(file_name);
   // int x, y;
   enable_raw_mode();
+  // bootstrap_file(E.file);
   // get_cursor_position(&y, &x);
   // editor_log("row: %d, col: %d\n", y, x);
   while (1) {
