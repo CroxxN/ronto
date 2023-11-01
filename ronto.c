@@ -56,7 +56,7 @@ void editor_log(char* s, ...){
 // Fails when the `string` is binary or non-alphanumeric & non-punctuation(._-)
 
 int isalnum_str(char *string) {
-  for (int i = 0; i < strlen(string); i++)
+  for (unsigned long i = 0; i < strlen(string); i++)
     if (iscntrl(string[i]))
       return -1;
 
@@ -112,7 +112,7 @@ int init_editor(char *file) {
 
 // STATUS: complete
 
-void disable_raw_mode() {
+void disable_raw_mode(void) {
   if (term.original_term == NULL) {
     printf("NULLED POINTER\n");
     return;
@@ -142,7 +142,7 @@ void disable_raw_mode() {
 
 // Done
 
-int enable_raw_mode() {
+int enable_raw_mode(void) {
   struct termios raw;
   if (tcgetattr(term.fd, &raw) != 0){
     perror("Failed to get terminal attributes");
@@ -176,17 +176,25 @@ int enable_raw_mode() {
 // STATUS: Incomplete
 void get_window_size(int *row, int *col) {
   struct winsize w;
-  if (ioctl(term.fd, TIOCGWINSZ, &w) == -1) {
+  if (ioctl(term.fd, TIOCGWINSZ, &w) != 0) {
     // Do SOMETHING
     // Handle when ioctl fails
+
+    /*
+    Currently, this implementation fails of alacritty(atleast), so it silently logs
+    the error, and we wait while to silently seg fauls(kek)
     int crow, ccol;
     get_cursor_position(&crow, &ccol);
+    editor_log("crow: %d, ccol:%d\n", crow, ccol);
     bf("\x1b[999C\x1b[999B");
     bf_flush();
     // write(STDOUT_FILENO, "\x1b[999C\x1b[999B", 8);
     get_cursor_position(row, col);
+    editor_log("row: %d, col: %d", row, col);
     bf("\x1b[%d;%dH", crow, ccol);
     bf_flush();
+    */
+    editor_log("[ERROR] Failed to get the terminal window size");
   }
 
   /*
@@ -195,6 +203,7 @@ void get_window_size(int *row, int *col) {
   */
   *row = w.ws_row;
   *col = w.ws_col;
+  editor_log("row: %d, col: %d", *row, *col);
 }
 
 // Collapse all `E->r`s to a single string
@@ -236,6 +245,7 @@ void xclp_cpy(void) {
 }
 
 void save_file_temp(ssize_t size, char *strings){
+  (void) size;
   if (!E.temp_file){
     E.temp_file = tmpfile();
   }
@@ -243,7 +253,7 @@ void save_file_temp(ssize_t size, char *strings){
 }
 
 // DONE
-void save_file() {
+void save_file(void) {
   if (!E.file){
     int fd = mkstemp(FILE_TEMPLATE);
     E.file = fdopen(fd, "w");
@@ -264,7 +274,7 @@ void save_file() {
 }
 
 void bootstrap_file(FILE *f){
-  char *lines;
+  char *lines = NULL;
   size_t file_size;
   fseek(f, 0, SEEK_END);
   file_size = ftell(f);
@@ -294,7 +304,7 @@ void bf(char *buf, ...) {
   va_end(v);
 }
 
-void bf_flush() {
+void bf_flush(void) {
   if (b.seq == NULL)
     return;
   write(STDOUT_FILENO, b.seq, b.l);
@@ -305,6 +315,10 @@ void bf_flush() {
 }
 
 int add_row(int pos, char *buf, ssize_t len) {
+  if (E.y >= E.screenrow){
+    E.rowoff++;
+  }
+  // TODO: segfault on realloc
   E.r = realloc(E.r, sizeof(row) * (E.numrow + 1));
   // "Error" Handeling
   assert(E.r != NULL);
@@ -341,7 +355,7 @@ int add_row(int pos, char *buf, ssize_t len) {
 
 void remove_row(int row){
   // TODO: Make the code dry
-  if (!E.r[row].content) return;
+  // if (!E.r[row].content) return; // Haha silly segfault
   if (E.r[row].size < 1){
 
     E.x = E.r[row - 1].size - 2;
@@ -365,13 +379,16 @@ void remove_row(int row){
   E.y--;
   E.numrow--;
   E.r = realloc(E.r, sizeof(E.r[0])*E.numrow);
+  if (E.rowoff>0){
+    E.coloff--;
+  }
 }
 
 // TODO: Implemet adding rows, NULL checking etc, here itself
 void add_char_at(char c, int at, int rowpos) {
   if (!E.r[rowpos].content) {
     add_row(1, "", 0);
-    E.r[rowpos].content = malloc(1);
+    // E.r[rowpos].content = malloc(1);
     assert(E.r[rowpos].content != NULL);
   }
   // if (sizeof(E.r[rowpos].content)>at+1){
@@ -392,16 +409,23 @@ void add_char_at(char c, int at, int rowpos) {
 }
 
 // TODO: move the `add_row` line to `add_char_at` function
+// NOTE: Usage of E.x and E.y are perfectly valid. DONOT use E.rowoff and shit
 void insert_key(char c) {
   if (iscntrl(c))
     return;
-  int rp = E.rowoff + E.y;
-  int cp = E.coloff + E.x;
-  if (rp >= E.numrow) {
-    add_row(rp, "", 0);
+  // int rp = E.rowoff + E.y;
+  // int cp = E.coloff + E.x;
+  // int rp = E.y;
+  // int cp = E.x;
+  if (E.x >= E.screencol){
+    E.coloff++;
+    // E.x = 0;
+  }
+  if (E.y >= E.numrow) {
+    add_row(E.y, "", 0);
     // E.y++;
   }
-  add_char_at(c, cp, rp);
+  add_char_at(c, E.x, E.y);
   E.x++;
   // if (E.y == E.r[rp].size - 1) {
   //   E.x++;
@@ -425,24 +449,25 @@ void delete_at(int rpos, int at) {
   E.r[rpos].content = realloc(E.r[rpos].content, E.r[rpos].size);
 }
 
-void e_delete() {
+void e_delete(void) {
   if (!E.r) return;
   // No Op if there is no character to remove
   if (E.y < 1 && E.x < 1) {
     return;
   }
 
-  int row = E.rowoff + E.y;
-  int at = E.coloff + E.x - 1;
-
-  if (at < 0 && row>0) {
-    // if at the beginning of the line and pressed delete, remove the row(\r\n char)
-    remove_row(row);
+  if (E.x < 1 && E.y>0) {
+    // if at the beginning of the line and pressed delete, remove the E.y(\r\n char)
+    remove_row(E.y);
     return;
   }
+
   E.x--;
-  E.r[row].size--;
-  delete_at(row, at);
+  E.r[E.y].size--;
+  delete_at(E.y, E.x);
+  if (E.coloff>0){
+    E.coloff--;
+  }
 }
 
 void enter_between(int row, int col){
@@ -526,7 +551,7 @@ void arrow_key(int key) {
     if (cp < 1) {
       row_factor = -1;
       col_factor = -2;
-      E.x = E.r[E.y-1].size;
+      E.x = E.r[rp-1].size;
     } else {
       // TODO: Move cursor by calculating E.r->size - E.x
       col_factor = -1;
@@ -650,7 +675,7 @@ int key_up(void) {
 }
 
 // FEAT: rudimentary functionality complete
-int handle_key_press() {
+int handle_key_press(void) {
   int c = key_up();
   switch (c) {
     // no-op
@@ -696,11 +721,12 @@ int handle_key_press() {
   }
 }
 
-// TODO: Expand tabs
+// TODO: Implement out of bound row adding
 void expand_rows(void) {
-  for (int i = 0; i < E.numrow; i++) {
+  for (int i = E.rowoff; i < E.numrow; i++) {
     if (E.r[i].content == NULL)
       return;
+    // TODO: Fix bugs
     write(STDOUT_FILENO, E.r[i].content+E.coloff, E.r[i].size-E.coloff);
     // bf(E.r[i].content, E.r[i].size);
   }
@@ -783,6 +809,8 @@ int main(int argc, char *argv[]) {
   // int x, y;
   enable_raw_mode();
   editor_log("%d [INFO]: Initiated raw mode\n", time(NULL));
+  // int row, col;
+  get_window_size(&E.screenrow, &E.screencol);
   // bootstrap_file(E.file);
   // get_cursor_position(&y, &x);
   // editor_log("row: %d, col: %d\n", y, x);
