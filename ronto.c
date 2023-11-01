@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>
 
 static char FILE_TEMPLATE[] = "Untitled-XXXXXX";
 
@@ -329,7 +330,7 @@ int add_row(int pos, char *buf, ssize_t len) {
     return 0;
   }
   E.r[pos].size = len;
-  E.r[pos].content = malloc(len); // + 1 for '\0'
+  E.r[pos].content = malloc(len);
   E.r[pos].render = NULL;
   E.r[pos].render_size = 0;
   E.numrow++;
@@ -450,6 +451,8 @@ void enter_between(int row, int col){
   E.r[row].content = realloc(E.r[row].content, col + 2);
   memcpy(E.r[row].content + col, "\r\n", 2);
   E.r[row].size = col + 2;
+  E.y++;
+  E.x = 0;
 }
 
 // TODO: Fix bugs
@@ -474,7 +477,6 @@ void enter_key(void) {
     buf = E.r[rp].content + cp + 1;
     // add_row(rp+1, E.r[rp].content + cp + 1, size);
   }
-  // add_row(rp + 1, "", 0);
   // Append carriage return & newline to every row when enter key is pressed
   memcpy(E.r[rp].content + E.r[rp].size, "\r\n", 2);
   add_row(rp + 1, buf, size);
@@ -699,7 +701,7 @@ void expand_rows(void) {
   for (int i = 0; i < E.numrow; i++) {
     if (E.r[i].content == NULL)
       return;
-    write(STDOUT_FILENO, E.r[i].content, E.r[i].size);
+    write(STDOUT_FILENO, E.r[i].content+E.coloff, E.r[i].size-E.coloff);
     // bf(E.r[i].content, E.r[i].size);
   }
 }
@@ -777,8 +779,10 @@ int main(int argc, char *argv[]) {
   atexit(disable_raw_mode);
 
   init_editor(file_name);
+  editor_log("%d [INFO]: Initiated Editor\n", time(NULL));
   // int x, y;
   enable_raw_mode();
+  editor_log("%d [INFO]: Initiated raw mode\n", time(NULL));
   // bootstrap_file(E.file);
   // get_cursor_position(&y, &x);
   // editor_log("row: %d, col: %d\n", y, x);
