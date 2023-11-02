@@ -315,9 +315,6 @@ void bf_flush(void) {
 }
 
 int add_row(int pos, char *buf, ssize_t len) {
-  if (E.y >= E.screenrow){
-    E.rowoff++;
-  }
   // TODO: segfault on realloc
   E.r = realloc(E.r, sizeof(row) * (E.numrow + 1));
   // "Error" Handeling
@@ -508,6 +505,9 @@ void enter_key(void) {
   E.y++;
   E.x = 0;
   E.r[rp].size += 2;
+  if (E.y >= E.screenrow){
+    E.rowoff++;
+  }
   return;
 }
 
@@ -525,14 +525,14 @@ void shift_cursor(void) {
   return;
 }
 
-// DONE
+// TODO: BUG
 void arrow_key(int key) {
 
   // If at the begginning of the editor, do nothing
   if (!E.r) return;
 
-  int rp = E.rowoff + E.y;
-  int cp = E.coloff + E.x;
+  int rp = E.y;
+  int cp = E.x;
 
 
   // If at the end of everything, do nothing
