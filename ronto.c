@@ -376,9 +376,9 @@ void remove_row(int row){
   E.y--;
   E.numrow--;
   E.r = realloc(E.r, sizeof(E.r[0])*E.numrow);
-  if (E.rowoff>0){
-    E.coloff--;
-  }
+  // if (E.rowoff>0){
+  //   E.coloff--;
+  // }
 }
 
 // TODO: Implemet adding rows, NULL checking etc, here itself
@@ -479,9 +479,10 @@ void enter_between(int row, int col){
 
 // TODO: Fix bugs
 void enter_key(void) {
-  int rp = E.rowoff + E.y;
+  // TODO: replace rp and cp
+  int rp = E.y;
   // Handle in-between line enter key pressing
-  int cp = E.coloff + E.x;
+  int cp = E.x;
   if (!E.r) {
     add_row(rp, "", 0);
     return;
@@ -505,23 +506,23 @@ void enter_key(void) {
   E.y++;
   E.x = 0;
   E.r[rp].size += 2;
-  if (E.y >= E.screenrow){
-    E.rowoff++;
-  }
+  // if (E.y >= E.screenrow){
+  //   E.rowoff++;
+  // }
   return;
 }
 
 void shift_cursor(void) {
   if (!E.r) return;
-  int rp = E.rowoff + E.y;
-  int cp = E.coloff + E.x;
+  // int rp = E.rowoff + E.y;
+  // int cp = E.coloff + E.x;
 
   // Position the cursor at the current E.y row and E.x column
   // if (cp<=1) cp = -1;
-  if (rp==E.numrow-1 && cp>E.r[rp].size){
+  if (E.y==E.numrow-1 && E.x>E.r[E.y].size){
     return;
   }
-  bf("\x1b[%d;%dH", rp + 1, cp + 1);
+  bf("\x1b[%d;%dH", E.y + 1, E.x + 1);
   return;
 }
 
@@ -531,6 +532,7 @@ void arrow_key(int key) {
   // If at the begginning of the editor, do nothing
   if (!E.r) return;
 
+  // TODO: Replace rp & cp with E.y and E.x
   int rp = E.y;
   int cp = E.x;
 
@@ -723,7 +725,11 @@ int handle_key_press(void) {
 
 // TODO: Implement out of bound row adding
 void expand_rows(void) {
-  for (int i = E.rowoff; i < E.numrow; i++) {
+  int i = 0;
+  if (E.y > E.screenrow){
+    i = E.y - E.screenrow;
+  }
+  for (; i < E.numrow; i++) {
     if (E.r[i].content == NULL)
       return;
     // TODO: Fix bugs
