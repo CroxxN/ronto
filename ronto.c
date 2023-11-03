@@ -315,15 +315,12 @@ void bf_flush(void) {
 }
 
 int add_row(int pos, char *buf, ssize_t len) {
-  // TODO: segfault on realloc
   E.r = realloc(E.r, sizeof(row) * (E.numrow + 1));
   // "Error" Handeling
   assert(E.r != NULL);
 
   E.r[pos].idx = pos;
 
-  // TODO: May have to revise this logic.
-  // Is it pos > E.numrow or pos >= E.numrow
   if (pos < E.numrow) {
     // dbg("Run");
     // FIX:  BUG
@@ -723,17 +720,31 @@ int handle_key_press(void) {
   }
 }
 
-// TODO: Implement out of bound row adding
+// TODO: Solve bugs
 void expand_rows(void) {
-  int i = 0;
+  int i = 0, y = 0, size;
   if (E.y > E.screenrow){
     i = E.y - E.screenrow;
   }
+  if (E.x > E.screencol){
+    y = E.x - E.screencol;
+  }
+
   for (; i < E.numrow; i++) {
     if (E.r[i].content == NULL)
       return;
     // TODO: Fix bugs
-    write(STDOUT_FILENO, E.r[i].content+E.coloff, E.r[i].size-E.coloff);
+    // if (E.x < E.screencol){
+    //   size = E.r[i].size;
+    // }else{
+    //   size = E.r[i].size - y;
+    // }
+    if ((E.x < E.screencol) && (E.r[i].size)>E.screencol){
+      size = E.screencol-1;
+    }else {
+      size = E.r[i].size - y;
+    }
+    write(STDOUT_FILENO, E.r[i].content+y, size);
     // bf(E.r[i].content, E.r[i].size);
   }
 }
