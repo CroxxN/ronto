@@ -740,11 +740,15 @@ void expand_rows(void) {
     //   size = E.r[i].size - y;
     // }
     if ((E.x < E.screencol) && (E.r[i].size)>E.screencol){
-      size = E.screencol-1;
-    }else {
+      size = E.screencol;
+    }else if ((E.x>=E.screencol) && (E.r[i].size>=E.screencol)){
+      size = E.screencol;
+    }
+    else {
       size = E.r[i].size - y;
     }
     write(STDOUT_FILENO, E.r[i].content+y, size);
+    bf_flush();
     // bf(E.r[i].content, E.r[i].size);
   }
 }
@@ -832,11 +836,8 @@ int main(int argc, char *argv[]) {
   // get_cursor_position(&y, &x);
   // editor_log("row: %d, col: %d\n", y, x);
   while (1) {
-    if (handle_key_press() == 1)
-      refresh_screen();
-    else 
-      shift_cursor();
-
+    handle_key_press();
+    refresh_screen();
     bf_flush();
   }
   return 0;

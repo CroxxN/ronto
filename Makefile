@@ -5,7 +5,7 @@ CFLAGS=-Wall -Wpedantic -Wextra -std=c99
 # Run command
 RUN = ./ronto -n
 
-main: ronto.c
+ronto: ronto.c
 	$(CC) ronto.c $(CFLAGS) -o ronto
 
 debug: ronto.c
