@@ -6,8 +6,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <time.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 static char FILE_TEMPLATE[] = "Untitled-XXXXXX";
 
@@ -35,17 +37,13 @@ enum Key {
   ARROW_RIGHT
 };
 
-
 static struct Editor E;
-
 
 static struct buf b = {NULL, 0};
 
-
 static struct Terminal term = {NULL, 0, STDIN_FILENO};
 
-
-void editor_log(char* s, ...){
+void editor_log(char *s, ...) {
   va_list v;
   va_start(v, s);
   vfprintf(E.log, s, v);
@@ -80,8 +78,8 @@ int get_cursor_position(int *row, int *col) {
 
 int init_editor(char *file) {
 
-  // Allocates Memory for the original_term termios struct. Fails if the malloc
-  // fails
+  // Allocates Memory for the original_term termios struct. Fails if the
+  // malloc fails
   term.original_term = (struct termios *)malloc(sizeof(struct termios));
   if (term.original_term == NULL) {
     perror("Failed to initialize original stuct");
@@ -96,8 +94,7 @@ int init_editor(char *file) {
   E.temp_file = NULL;
 
   // yes. DRY code for you.
-  E.x =  E.y = E.numrow = E.coloff = E.rowoff = E.screenrow =
-      E.screencol = 0;
+  E.x = E.y = E.numrow = E.coloff = E.rowoff = E.screenrow = E.screencol = 0;
   E.save = false;
   E.r = NULL;
   E.file = NULL;
@@ -129,14 +126,15 @@ void disable_raw_mode(void) {
   // Clear the alternate screen
   bf("\x1b[H\x1b[2J");
   // write(STDOUT_FILENO, "\x1b[H\x1b[2J", 7);
-  // Switch back to normal screen -- NOT Specifically VT100, but should work on
-  // most modern terminals and emulators. If the terminal is not capable of such
-  // feature, just discard the escape sequence.
+  // Switch back to normal screen -- NOT Specifically VT100, but should work
+  // on most modern terminals and emulators. If the terminal is not capable of
+  // such feature, just discard the escape sequence.
   bf("\x1b[?1049l");
   bf("\x1b[7h");
   // write(STDOUT_FILENO, "\x1b[?1049l", strlen("\x1b[?1049l"));
   bf_flush();
-  // `\x1b[1;32m` is just escape sequence for printing bold, green colored text
+  // `\x1b[1;32m` is just escape sequence for printing bold, green colored
+  // text
   printf("\n\x1b[1;32mExited Successfully from Ronto!\x1b[0m\n");
 }
 
@@ -144,7 +142,7 @@ void disable_raw_mode(void) {
 
 int enable_raw_mode(void) {
   struct termios raw;
-  if (tcgetattr(term.fd, &raw) != 0){
+  if (tcgetattr(term.fd, &raw) != 0) {
     perror("Failed to get terminal attributes");
     exit(1);
   }
@@ -181,8 +179,8 @@ void get_window_size(int *row, int *col) {
     // Handle when ioctl fails
 
     /*
-    Currently, this implementation fails of alacritty(atleast), so it silently logs
-    the error, and we wait while to silently seg fauls(kek)
+    Currently, this implementation fails of alacritty(atleast), so it
+    silently logs the error, and we wait while to silently seg fauls(kek)
     int crow, ccol;
     get_cursor_position(&crow, &ccol);
     editor_log("crow: %d, ccol:%d\n", crow, ccol);
@@ -207,22 +205,22 @@ void get_window_size(int *row, int *col) {
 }
 
 // Collapse all `E->r`s to a single string
-char *rowstostr(ssize_t *s){
+char *rowstostr(ssize_t *s) {
   ssize_t size = 0;
-  for (int i=0; i<E.numrow; i++)
+  for (int i = 0; i < E.numrow; i++)
     size += E.r[i].size;
   *s = size;
   char *strs;
   strs = malloc(size);
-  assert(strs!=NULL);
+  assert(strs != NULL);
 
-  for (int i=0; i<E.numrow; i++){
-    assert(E.r[i].content!=NULL);
+  for (int i = 0; i < E.numrow; i++) {
+    assert(E.r[i].content != NULL);
     memcpy(strs, E.r[i].content, E.r[i].size);
-    strs+=E.r[i].size;
+    strs += E.r[i].size;
   }
   *strs = '\0';
-  strs-=size;
+  strs -= size;
   return strs;
 }
 
@@ -244,9 +242,9 @@ void xclp_cpy(void) {
   return;
 }
 
-void save_file_temp(ssize_t size, char *strings){
-  (void) size;
-  if (!E.temp_file){
+void save_file_temp(ssize_t size, char *strings) {
+  (void)size;
+  if (!E.temp_file) {
     E.temp_file = tmpfile();
   }
   fputs(strings, E.temp_file);
@@ -254,7 +252,7 @@ void save_file_temp(ssize_t size, char *strings){
 
 // DONE
 void save_file(void) {
-  if (!E.file){
+  if (!E.file) {
     int fd = mkstemp(FILE_TEMPLATE);
     E.file = fdopen(fd, "w");
   }
@@ -273,14 +271,32 @@ void save_file(void) {
   return;
 }
 
-void bootstrap_file(FILE *f){
-  char *lines = NULL;
+void bootstrap_file(char *file) {
+  FILE *f = fopen(file, "r");
+  struct stat fstat;
   size_t file_size;
   fseek(f, 0, SEEK_END);
   file_size = ftell(f);
+  char *lines = malloc(file_size);
   fseek(f, 0, SEEK_SET);
   fread(lines, 1, file_size, f);
   editor_log("%d\n", file_size);
+  stat(file, &fstat);
+  char *token = strtok(lines, "\n");
+  int i = 0;
+  E.y = 0;
+  while (token != NULL) {
+    int size = strlen(token);
+    add_row(i, token, size);
+    E.r[i].content = realloc(E.r[i].content, size + 2);
+    memcpy(E.r[i].content + size, "\r\n", 2);
+    E.r[i].size+=2;
+    /* editor_log("%d\n,", size); */
+    editor_log("%s", E.r[i].content);
+    i++;
+    E.y++;
+    token = strtok(NULL, "\n");
+  }
 }
 
 // A buffer formatter. It appends messages to be sent to the std output, and
@@ -288,11 +304,12 @@ void bootstrap_file(FILE *f){
 void bf(char *buf, ...) {
   int buf_len = strlen(buf);
 
-  if (buf_len<1) return;
+  if (buf_len < 1)
+    return;
   // Grab the variadic arguments
   va_list v;
   va_start(v, buf);
-  
+
   char *f_buf = malloc(buf_len);
   vsprintf(f_buf, buf, v);
   if (!f_buf)
@@ -325,15 +342,17 @@ int add_row(int pos, char *buf, ssize_t len) {
     // dbg("Run");
     // FIX:  BUG
     // memmove(E.r + pos + 1, E.r + pos,
-    //         sizeof(E.r[0]) * (E.numrow - pos)); // Implicit object creation
+    //         sizeof(E.r[0]) * (E.numrow - pos)); // Implicit object
+    //         creation
     // E.r[pos+1].content = realloc(E.r[pos+1].content,2);
     // memcpy(E.r[pos+1].content, "\r\n", 2);
     // for (int i = pos + 1; i < E.numrow; i++)
     //   E.r[i].idx++;
-    memmove(E.r + pos + 2, E.r + pos + 1, sizeof(E.r[0])*(E.numrow - pos -1));
-    E.r[pos+1].content = malloc(len);
-    memcpy(E.r[pos+1].content, buf, len);
-    E.r[pos+1].size = len;
+    memmove(E.r + pos + 2, E.r + pos + 1,
+            sizeof(E.r[0]) * (E.numrow - pos - 1));
+    E.r[pos + 1].content = malloc(len);
+    memcpy(E.r[pos + 1].content, buf, len);
+    E.r[pos + 1].size = len;
     E.numrow++;
     return 0;
   }
@@ -342,15 +361,16 @@ int add_row(int pos, char *buf, ssize_t len) {
   E.r[pos].render = NULL;
   E.r[pos].render_size = 0;
   E.numrow++;
-  if (!buf) return 0;
+  if (!buf)
+    return 0;
   memcpy(E.r[pos].content, buf, len);
   return 0;
 }
 
-void remove_row(int row){
+void remove_row(int row) {
   // TODO: Make the code dry
   // if (!E.r[row].content) return; // Haha silly segfault
-  if (E.r[row].size < 1){
+  if (E.r[row].size < 1) {
 
     E.x = E.r[row - 1].size - 2;
     E.y--;
@@ -358,21 +378,22 @@ void remove_row(int row){
     row--;
     E.r[E.y].size -= 2;
     E.r[E.y].content = realloc(E.r[E.y].content, E.r[E.y].size);
-    E.r = realloc(E.r, sizeof(E.r[0])*E.numrow);
+    E.r = realloc(E.r, sizeof(E.r[0]) * E.numrow);
     return;
   }
-  E.x = E.r[row-1].size - 2; // WORKS!
+  E.x = E.r[row - 1].size - 2; // WORKS!
 
-  int res_size = E.r[row-1].size + E.r[row].size - 2;
-  E.r[row-1].content = realloc(E.r[row-1].content, res_size); // works
-  memmove(E.r[row-1].content+E.r[row-1].size-2,E.r[row].content, E.r[row].size); 
-  E.r[row-1].size = res_size; // works
+  int res_size = E.r[row - 1].size + E.r[row].size - 2;
+  E.r[row - 1].content = realloc(E.r[row - 1].content, res_size); // works
+  memmove(E.r[row - 1].content + E.r[row - 1].size - 2, E.r[row].content,
+          E.r[row].size);
+  E.r[row - 1].size = res_size; // works
 
   // STUPID BUG: FIXED
-  memmove(E.r + row, E.r + row + 1, sizeof(E.r[0]) * (E.numrow - row - 1)); 
+  memmove(E.r + row, E.r + row + 1, sizeof(E.r[0]) * (E.numrow - row - 1));
   E.y--;
   E.numrow--;
-  E.r = realloc(E.r, sizeof(E.r[0])*E.numrow);
+  E.r = realloc(E.r, sizeof(E.r[0]) * E.numrow);
   // if (E.rowoff>0){
   //   E.coloff--;
   // }
@@ -390,8 +411,8 @@ void add_char_at(char c, int at, int rowpos) {
   // }
   // 1+ Hours of BUG.
   E.r[rowpos].content = realloc(E.r[rowpos].content, E.r[rowpos].size + 1);
-  // move all the characters to the right when a character is added to the middle of the
-  // content buffer.
+  // move all the characters to the right when a character is added to the
+  // middle of the content buffer.
 
   if (at < E.r[rowpos].size) {
     memmove(E.r[rowpos].content + at + 1, E.r[rowpos].content + at,
@@ -411,7 +432,7 @@ void insert_key(char c) {
   // int cp = E.coloff + E.x;
   // int rp = E.y;
   // int cp = E.x;
-  if (E.x >= E.screencol){
+  if (E.x >= E.screencol) {
     E.coloff++;
     // E.x = 0;
   }
@@ -444,14 +465,16 @@ void delete_at(int rpos, int at) {
 }
 
 void e_delete(void) {
-  if (!E.r) return;
+  if (!E.r)
+    return;
   // No Op if there is no character to remove
   if (E.y < 1 && E.x < 1) {
     return;
   }
 
-  if (E.x < 1 && E.y>0) {
-    // if at the beginning of the line and pressed delete, remove the E.y(\r\n char)
+  if (E.x < 1 && E.y > 0) {
+    // if at the beginning of the line and pressed delete, remove the
+    // E.y(\r\n char)
     remove_row(E.y);
     return;
   }
@@ -459,12 +482,12 @@ void e_delete(void) {
   E.x--;
   E.r[E.y].size--;
   delete_at(E.y, E.x);
-  if (E.coloff>0){
+  if (E.coloff > 0) {
     E.coloff--;
   }
 }
 
-void enter_between(int row, int col){
+void enter_between(int row, int col) {
   int new_size = E.r[row].size - col;
   add_row(row, E.r[row].content + col, new_size);
   E.r[row].content = realloc(E.r[row].content, col + 2);
@@ -484,16 +507,16 @@ void enter_key(void) {
     add_row(rp, "", 0);
     return;
   }
-  if (cp < E.r[rp].size-1){
+  if (cp < E.r[rp].size - 1) {
     enter_between(rp, cp);
     return;
   }
 
   E.r[rp].content = realloc(E.r[rp].content, E.r[rp].size + 2);
   assert(E.r[rp].content != NULL);
-  int size = E.r[rp].size-cp;
+  int size = E.r[rp].size - cp;
   char *buf = NULL;
-  if (cp<size){
+  if (cp < size) {
     buf = E.r[rp].content + cp + 1;
     // add_row(rp+1, E.r[rp].content + cp + 1, size);
   }
@@ -510,13 +533,14 @@ void enter_key(void) {
 }
 
 void shift_cursor(void) {
-  if (!E.r) return;
+  if (!E.r)
+    return;
   // int rp = E.rowoff + E.y;
   // int cp = E.coloff + E.x;
 
   // Position the cursor at the current E.y row and E.x column
   // if (cp<=1) cp = -1;
-  if (E.y==E.numrow-1 && E.x>E.r[E.y].size){
+  if (E.y == E.numrow - 1 && E.x > E.r[E.y].size) {
     return;
   }
   bf("\x1b[%d;%dH", E.y + 1, E.x + 1);
@@ -527,18 +551,17 @@ void shift_cursor(void) {
 void arrow_key(int key) {
 
   // If at the begginning of the editor, do nothing
-  if (!E.r) return;
+  if (!E.r)
+    return;
 
   // TODO: Replace rp & cp with E.y and E.x
   int rp = E.y;
   int cp = E.x;
 
-
   // If at the end of everything, do nothing
   // if (key == ARROW_DOWN && rp == E.numrow)
   //   return;
 
-  
   int row_factor = 0;
   int col_factor = 0;
 
@@ -546,55 +569,56 @@ void arrow_key(int key) {
   // TODO: Make separate functions?
 
   if (key == ARROW_LEFT) {
-    if (rp <1 && cp<1) return;
+    if (rp < 1 && cp < 1)
+      return;
     if (cp < 1) {
       row_factor = -1;
       col_factor = -2;
-      E.x = E.r[rp-1].size;
+      E.x = E.r[rp - 1].size;
     } else {
       // TODO: Move cursor by calculating E.r->size - E.x
       col_factor = -1;
-
     }
 
   }
   // TODO: Clear some rough edges
-  else if (key == ARROW_RIGHT){
+  else if (key == ARROW_RIGHT) {
     // If at the end of the editor lines, do nothing
-    if (rp>=E.numrow-1 && cp >= E.r[rp].size) return;
+    if (rp >= E.numrow - 1 && cp >= E.r[rp].size)
+      return;
 
-    if (rp<E.numrow-1 && cp>=E.r[rp].size-2) {
+    if (rp < E.numrow - 1 && cp >= E.r[rp].size - 2) {
 
       row_factor = 1;
       col_factor = -E.x;
-    }
-    else {
+    } else {
       col_factor = 1;
     }
-  }
-  else if (key == ARROW_UP){
+  } else if (key == ARROW_UP) {
     // If trying to go up the first line, do nothing
-    if (E.y<1) return;
+    if (E.y < 1)
+      return;
 
-    row_factor = -1;
-  }
-  else if (key == ARROW_DOWN){
+    // row_factor = -1;
+    E.y--;
+    return;
+  } else if (key == ARROW_DOWN) {
     // If trying to go beyond the last line, do nothing
-    if (E.y>=E.numrow-1) return;
+    if (E.y >= E.numrow - 1)
+      return;
     row_factor = 1;
   }
 
   E.x += col_factor;
   E.y += row_factor;
 
-  // The last line doesn't have a `\r\n` char. 
+  // The last line doesn't have a `\r\n` char.
   // So we don't subract 2 from the row size
   if (E.y >= E.numrow - 1) {
-    if (E.x > E.r[E.y].size )
+    if (E.x > E.r[E.y].size)
       E.x = E.r[E.y].size;
     return;
   }
-
   if (E.x >= E.r[E.y].size - 2)
     E.x = E.r[E.y].size - 2;
 }
@@ -610,8 +634,8 @@ int key_up(void) {
 
   /* Read three sequences from the terminal input. Useful to separate ESC
   key from arrow, home, end, et al. keys. It's like a timeout. Read 3 bytes,
-  if only 1 byte is read, and the first byte is <ESC> key, switch to normal mode,
-  else process the sequent bytes.
+  if only 1 byte is read, and the first byte is <ESC> key, switch to normal
+  mode, else process the sequent bytes.
   */
   while ((num = read(term.fd, &seq, 3)) == 0)
     ;
@@ -620,7 +644,8 @@ int key_up(void) {
     switch (seq[0]) {
     // DO Something
     case ESC:
-      if (num == 1) return ESC;
+      if (num == 1)
+        return ESC;
       if (seq[1] != '[') {
         // DO SOMETHING
         // Page up/down, home, etc shise
@@ -644,30 +669,30 @@ int key_up(void) {
     }
   else
     switch (seq[0]) {
-      case 'h':
-        return ARROW_LEFT;
-      case 'l':
-        return ARROW_RIGHT;
-      case 'j':
-        return ARROW_DOWN;
-      case 'k':
-        return ARROW_UP;
-      case 'i':
-        E.mode = INSERT;
-        break;
-      case 'I':
-        E.x = 0;
-        E.mode = INSERT;
-        break;
-      case 'A':
-        E.x = (E.y >= E.numrow - 1) ? E.r[E.y].size : E.r[E.y].size - 2;
-        E.mode = INSERT;
-        break;
-      case 'x':
-        return BACKSPACE;
-    // TODO: remove this temporary "fix"
-      default:
-        return seq[0];
+    case 'h':
+      return ARROW_LEFT;
+    case 'l':
+      return ARROW_RIGHT;
+    case 'j':
+      return ARROW_DOWN;
+    case 'k':
+      return ARROW_UP;
+    case 'i':
+      E.mode = INSERT;
+      break;
+    case 'I':
+      E.x = 0;
+      E.mode = INSERT;
+      break;
+    case 'A':
+      E.x = (E.y >= E.numrow - 1) ? E.r[E.y].size : E.r[E.y].size - 2;
+      E.mode = INSERT;
+      break;
+    case 'x':
+      return BACKSPACE;
+      // TODO: remove this temporary "fix"
+    default:
+      return seq[0];
     }
   // no-op
   return -1;
@@ -691,7 +716,7 @@ int handle_key_press(void) {
     save_file();
     return 0;
   case CTRL_C:
-      xclp_cpy();
+    xclp_cpy();
     return 0;
   case ESC:
     E.mode = NORMAL;
@@ -704,7 +729,7 @@ int handle_key_press(void) {
     return 0;
 
   case BACKSPACE:
-    e_delete ();
+    e_delete();
     E.save = false;
     return 1;
   case ENTER:
@@ -712,7 +737,8 @@ int handle_key_press(void) {
     E.save = false;
     return 1;
   default:
-    if (E.mode == NORMAL) return 0;
+    if (E.mode == NORMAL)
+      return 0;
     insert_key(c);
     E.save = false;
     // Handle default case i.e add it to the character buffer
@@ -723,10 +749,10 @@ int handle_key_press(void) {
 // TODO: Solve bugs
 void expand_rows(void) {
   int i = 0, y = 0, size;
-  if (E.y > E.screenrow){
+  if (E.y > E.screenrow) {
     i = E.y - E.screenrow;
   }
-  if (E.x > E.screencol){
+  if (E.x > E.screencol) {
     y = E.x - E.screencol;
   }
 
@@ -739,15 +765,15 @@ void expand_rows(void) {
     // }else{
     //   size = E.r[i].size - y;
     // }
-    if ((E.x < E.screencol) && (E.r[i].size)>E.screencol){
+    if ((E.x < E.screencol) && (E.r[i].size) > E.screencol) {
       size = E.screencol;
-    }else if ((E.x>=E.screencol) && (E.r[i].size>=E.screencol)){
+    } else if ((E.x >= E.screencol) && (E.r[i].size >= E.screencol)) {
       size = E.screencol;
-    }
+    } 
     else {
       size = E.r[i].size - y;
     }
-    write(STDOUT_FILENO, E.r[i].content+y, size);
+    write(STDOUT_FILENO, E.r[i].content + y, size);
     bf_flush();
     // bf(E.r[i].content, E.r[i].size);
   }
@@ -782,7 +808,8 @@ void refresh_screen(void) {
 // Program Driver
 
 int main(int argc, char *argv[]) {
-  // TODO: Accept only 1 argument(i.e. just the program name & nothing else) too
+  // TODO: Accept only 1 argument(i.e. just the program name & nothing else)
+  // too
   if (argc < 2) {
     printf("Error: \x1b[1;31mNo Arguments Supplied\x1b[0m\n");
     printf("Usage: ronto -[option] <file_name>\n");
@@ -812,12 +839,10 @@ int main(int argc, char *argv[]) {
       return -1;
     }
   }
-  if (file) {
-    if (isalnum_str(file_name) != 0)
-      file_name = argv[2];
-    printf("%s\n", file_name);
-  }
-  // Goto alternate screen buffer & clear put the cursor to home position
+  /* if (file) { */
+  /*   editor_log("Found file %s", file_name); */
+  /* } */
+  /* // Goto alternate screen buffer & clear put the cursor to home position */
   bf("\x1b[?1049h\x1b[H");
   // bf("\x1b[7l");
   bf_flush();
@@ -832,12 +857,14 @@ int main(int argc, char *argv[]) {
   editor_log("%d [INFO]: Initiated raw mode\n", time(NULL));
   // int row, col;
   get_window_size(&E.screenrow, &E.screencol);
-  // bootstrap_file(E.file);
+  if (file){
+    bootstrap_file(file_name);
+  }    
   // get_cursor_position(&y, &x);
   // editor_log("row: %d, col: %d\n", y, x);
   while (1) {
+    refresh_screen();    
     handle_key_press();
-    refresh_screen();
     bf_flush();
   }
   return 0;
