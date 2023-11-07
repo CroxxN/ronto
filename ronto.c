@@ -82,7 +82,7 @@ int get_cursor_position(int *row, int *col) {
   return 0;
 }
 
-int init_editor(char *file) {
+bool init_editor(char *file) {
 
   // Allocates Memory for the original_term termios struct. Fails if the
   // malloc fails
@@ -94,7 +94,7 @@ int init_editor(char *file) {
   tcgetattr(term.fd, term.original_term);
   if (term.original_term == NULL) {
     printf("Failed Initialization\n");
-    return -1;
+    exit(-1);
   }
   // verify that t is not NULL and `tmpfile()` call succeded
   E.temp_file = NULL;
@@ -104,13 +104,17 @@ int init_editor(char *file) {
   E.save = false;
   E.r = NULL;
   E.file = NULL;
+  E.mode = NORMAL;
   E.log = fopen("log", "a");
   get_window_size(&E.screenrow, &E.screencol);
+  if (fopen(file, "r") == NULL) {
+    E.file = fopen(file, "w");
+    return false;
+  }
   E.file = fopen(file, "r+");
-
+  assert(E.file != NULL);
   // Actually use this line
-  E.mode = NORMAL;
-  return 0;
+  return true;
 }
 
 // STATUS: complete
@@ -407,7 +411,7 @@ void remove_row(int row) {
 
 void add_char_at(char c, int at, int rowpos) {
   if (!E.r[rowpos].content) {
-    add_row(1, "", 0);
+    add_row(rowpos, "", 0);
     // E.r[rowpos].content = malloc(1);
     assert(E.r[rowpos].content != NULL);
   }
@@ -757,15 +761,15 @@ void add_char_at(char c, int at, int rowpos) {
 
  // TODO: Solve bugs
  void expand_rows(void) {
-  int i = 0, y = 0, size, row_size=E.numrow;
-  if (E.y > E.screenrow) {
+  int i = 0, y = 0, size, row_size = E.numrow;
+  if (E.y >= E.screenrow) {
     i = E.y - E.screenrow;
   }
-  if (E.numrow > E.screenrow){
-    row_size = E.screenrow;
+  if (E.numrow >= E.screenrow) {
+    row_size = E.screenrow + i + 1;
   }
   if (E.x > E.screencol) {
-    y = E.x - E.screencol;
+    y = E.x - E.screencol + 1;
   }
 
   for (; i < row_size; i++) {
@@ -781,8 +785,7 @@ void add_char_at(char c, int at, int rowpos) {
       size = E.screencol;
     } else if ((E.x >= E.screencol) && (E.r[i].size >= E.screencol)) {
       size = E.screencol;
-    } 
-    else {
+    } else {
       size = E.r[i].size - y;
     }
     write(STDOUT_FILENO, E.r[i].content + y, size);
@@ -863,7 +866,7 @@ void add_char_at(char c, int at, int rowpos) {
 
   atexit(disable_raw_mode);
 
-  init_editor(file_name);
+  file = init_editor(file_name);
   editor_log("%d [INFO]: Initiated Editor\n", time(NULL));
   // int x, y;
   enable_raw_mode();

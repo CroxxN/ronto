@@ -88,16 +88,19 @@ struct Terminal {
 
 // Function defs: 
 
+void dbg(char *s, ...);
 void editor_log(char *s, ...);
 int isalnum_str(char *string);
+int tabreplce(char* target, int pos);
 int get_cursor_position(int *row, int *col);
-int init_editor(char *file);
+bool init_editor(char *file);
 void disable_raw_mode(void);
 int enable_raw_mode(void);
 void query_cursor_pos(int *x, int *y);
 void get_window_size(int *row, int *col);
 char *rowstostr(ssize_t *s);
 void xclp_cpy(void);
+void save_file_temp(ssize_t size, char *strings);
 void save_file(void);
 void bootstrap_file(char *file);
 void bf(char *buf, ...);
@@ -108,8 +111,8 @@ void add_char_at(char c, int at, int rowpos);
 void insert_key(char c);
 void delete_at(int rpos, int at);
 void e_delete(void);
-void enter_key(void);
 void enter_between(int row, int col);
+void enter_key(void);
 void shift_cursor(void);
 void set_cursor(int row, int pos);
 void arrow_key(int key);
