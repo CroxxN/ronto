@@ -62,6 +62,8 @@ int isalnum_str(char *string) {
 }
 
 int tabreplce(char *target, int pos) {
+  (void) target;
+  (void) pos;
   return 0;
 }
 
@@ -104,10 +106,10 @@ int init_editor(char *file) {
   E.file = NULL;
   E.log = fopen("log", "a");
   get_window_size(&E.screenrow, &E.screencol);
-  E.file = fopen(file, "rw");
+  E.file = fopen(file, "r+");
 
   // Actually use this line
-  E.mode = INSERT;
+  E.mode = NORMAL;
   return 0;
 }
 
@@ -256,6 +258,7 @@ void save_file_temp(ssize_t size, char *strings) {
 
 // DONE
 void save_file(void) {
+  if (E.save) return;
   if (!E.file) {
     int fd = mkstemp(FILE_TEMPLATE);
     E.file = fdopen(fd, "w");
@@ -272,6 +275,7 @@ void save_file(void) {
   E.save = true;
   free(strings);
   strings = NULL;
+  editor_log("File saved");
   return;
 }
 
@@ -286,13 +290,13 @@ void bootstrap_file(char *file) {
   fread(lines, 1, file_size, f);
   editor_log("%d\n", file_size);
   stat(file, &fstat);
-  char *token = strtok(lines, "\n");
+  char *token = strtok(lines, "\r\n");
   int i = 0;
   E.y = 0;
   while (token != NULL) {
     int size = strlen(token);
     add_row(i, token, size);
-    token = strtok(NULL, "\n");
+    token = strtok(NULL, "\r\n");
     if (token !=NULL){
       E.r[i].content = realloc(E.r[i].content, size + 2);
       memcpy(E.r[i].content + size, "\r\n", 2);
@@ -716,7 +720,8 @@ void add_char_at(char c, int at, int rowpos) {
     // break;
 
   case CTRL_S:
-    write(STDOUT_FILENO, smessage, strlen(smessage));
+    // write(STDOUT_FILENO, smessage, strlen(smessage));
+    editor_log("%s", smessage);
     save_file();
     return 0;
   case CTRL_C:
@@ -803,6 +808,7 @@ void add_char_at(char c, int at, int rowpos) {
   char *write_buf = "\x1b[H\x1b[J";
   write(STDOUT_FILENO, write_buf, strlen(write_buf));
   // bf(NULL, "\x1b[H\x1b[J");
+  // TODO: Expand tabs to spaces
   expand_rows();
 
   // Shift cursor to the current postion
