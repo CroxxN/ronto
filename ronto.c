@@ -44,7 +44,7 @@ static struct buf b = {NULL, 0};
 static struct Terminal term = {NULL, 0, STDIN_FILENO};
 
 void editor_log(char *s, ...) {
-  va_list v;
+nnnnnnnnnn  va_list v;
   va_start(v, s);
   vfprintf(E.log, s, v);
 }
@@ -58,6 +58,10 @@ int isalnum_str(char *string) {
     if (iscntrl(string[i]))
       return -1;
 
+  return 0;
+}
+
+int tabreplce(char *target, int pos) {
   return 0;
 }
 
