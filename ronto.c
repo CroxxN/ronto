@@ -6,10 +6,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
-#include <unistd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <time.h>
+#include <unistd.h>
 
 static char FILE_TEMPLATE[] = "Untitled-XXXXXX";
 
@@ -62,8 +62,8 @@ int isalnum_str(char *string) {
 }
 
 int tabreplce(char *target, int pos) {
-  (void) target;
-  (void) pos;
+  (void)target;
+  (void)pos;
   return 0;
 }
 
@@ -262,7 +262,8 @@ void save_file_temp(ssize_t size, char *strings) {
 
 // DONE
 void save_file(void) {
-  if (E.save) return;
+  if (E.save)
+    return;
   if (!E.file) {
     int fd = mkstemp(FILE_TEMPLATE);
     E.file = fdopen(fd, "w");
@@ -301,10 +302,10 @@ void bootstrap_file(char *file) {
     int size = strlen(token);
     add_row(i, token, size);
     token = strtok(NULL, "\r\n");
-    if (token !=NULL){
+    if (token != NULL) {
       E.r[i].content = realloc(E.r[i].content, size + 2);
       memcpy(E.r[i].content + size, "\r\n", 2);
-      E.r[i].size+=2;
+      E.r[i].size += 2;
     }
     i++;
   }
@@ -430,11 +431,11 @@ void add_char_at(char c, int at, int rowpos) {
   E.r[rowpos].content[at] = c;
   // Add null char at the end
   E.r[rowpos].size++;
- }
+}
 
- // TODO: move the `add_row` line to `add_char_at` function
- // NOTE: Usage of E.x and E.y are perfectly valid. DONOT use E.rowoff and shit
- void insert_key(char c) {
+// TODO: move the `add_row` line to `add_char_at` function
+// NOTE: Usage of E.x and E.y are perfectly valid. DONOT use E.rowoff and shit
+void insert_key(char c) {
   if (iscntrl(c))
     return;
   // int rp = E.rowoff + E.y;
@@ -457,23 +458,23 @@ void add_char_at(char c, int at, int rowpos) {
   // } else {
   //   E.y++;
   // }
- }
+}
 
- // TODO: Fix bugs
- void delete_at(int rpos, int at) {
+// TODO: Fix bugs
+void delete_at(int rpos, int at) {
   if (rpos == 0 && at < 1) {
     return;
   };
   // TODO: Don't call realloc so often?
   if (at < E.r[rpos].size) {
     memmove(E.r[rpos].content + at, E.r[rpos].content + at + 1,
-	    E.r[rpos].size - at);
+            E.r[rpos].size - at);
     // bf("\x1b[%dD", E.r[rpos].size - E.x);
   }
   E.r[rpos].content = realloc(E.r[rpos].content, E.r[rpos].size);
- }
+}
 
- void e_delete(void) {
+void e_delete(void) {
   if (!E.r)
     return;
   // No Op if there is no character to remove
@@ -494,9 +495,9 @@ void add_char_at(char c, int at, int rowpos) {
   if (E.coloff > 0) {
     E.coloff--;
   }
- }
+}
 
- void enter_between(int row, int col) {
+void enter_between(int row, int col) {
   int new_size = E.r[row].size - col;
   add_row(row, E.r[row].content + col, new_size);
   E.r[row].content = realloc(E.r[row].content, col + 2);
@@ -504,10 +505,10 @@ void add_char_at(char c, int at, int rowpos) {
   E.r[row].size = col + 2;
   E.y++;
   E.x = 0;
- }
+}
 
- // TODO: Fix bugs
- void enter_key(void) {
+// TODO: Fix bugs
+void enter_key(void) {
   // TODO: replace rp and cp
   int rp = E.y;
   // Handle in-between line enter key pressing
@@ -539,9 +540,9 @@ void add_char_at(char c, int at, int rowpos) {
   //   E.rowoff++;
   // }
   return;
- }
+}
 
- void shift_cursor(void) {
+void shift_cursor(void) {
   if (!E.r)
     return;
   // int rp = E.rowoff + E.y;
@@ -554,10 +555,10 @@ void add_char_at(char c, int at, int rowpos) {
   }
   bf("\x1b[%d;%dH", E.y + 1, E.x + 1);
   return;
- }
+}
 
- // TODO: BUG
- void arrow_key(int key) {
+// TODO: BUG
+void arrow_key(int key) {
 
   // If at the begginning of the editor, do nothing
   if (!E.r)
@@ -602,8 +603,8 @@ void add_char_at(char c, int at, int rowpos) {
 
     } else {
       col_factor = 1;
-      if (E.r[E.y].content[E.x] == '\t'){
-	col_factor = 4;
+      if (E.r[E.y].content[E.x] == '\t') {
+        col_factor = 4;
       }
     }
   } else if (key == ARROW_UP) {
@@ -633,14 +634,14 @@ void add_char_at(char c, int at, int rowpos) {
   }
   if (E.x >= E.r[E.y].size - 2)
     E.x = E.r[E.y].size - 2;
- }
+}
 
- // Carriage Return + Newline
- char *qmessage = "\r\nPressed Control + Q, so quitting\r\n";
- char *smessage = "\r\nPressed Control + S, so saving\r\n";
+// Carriage Return + Newline
+char *qmessage = "\r\nPressed Control + Q, so quitting\r\n";
+char *smessage = "\r\nPressed Control + S, so saving\r\n";
 
- // Maybe some editor config or other parameter
- int key_up(void) {
+// Maybe some editor config or other parameter
+int key_up(void) {
   char seq[3];
   int num;
 
@@ -657,22 +658,22 @@ void add_char_at(char c, int at, int rowpos) {
     // DO Something
     case ESC:
       if (num == 1)
-	return ESC;
+        return ESC;
       if (seq[1] != '[') {
-	// DO SOMETHING
-	// Page up/down, home, etc shise
+        // DO SOMETHING
+        // Page up/down, home, etc shise
       } else {
-	switch (seq[2]) {
-	case 'A':
-	  return ARROW_UP;
+        switch (seq[2]) {
+        case 'A':
+          return ARROW_UP;
 
-	case 'B':
-	  return ARROW_DOWN;
-	case 'C':
-	  return ARROW_RIGHT;
-	case 'D':
-	  return ARROW_LEFT;
-	}
+        case 'B':
+          return ARROW_DOWN;
+        case 'C':
+          return ARROW_RIGHT;
+        case 'D':
+          return ARROW_LEFT;
+        }
       }
       // Handle Escape Sequence
       return -1;
@@ -708,10 +709,10 @@ void add_char_at(char c, int at, int rowpos) {
     }
   // no-op
   return -1;
- }
+}
 
- // FEAT: rudimentary functionality complete
- int handle_key_press(void) {
+// FEAT: rudimentary functionality complete
+int handle_key_press(void) {
   int c = key_up();
   switch (c) {
     // no-op
@@ -757,10 +758,10 @@ void add_char_at(char c, int at, int rowpos) {
     // Handle default case i.e add it to the character buffer
     return 1;
   }
- }
+}
 
- // TODO: Solve bugs
- void expand_rows(void) {
+// TODO: Solve bugs
+void expand_rows(void) {
   int i = 0, y = 0, size, row_size = E.numrow;
   if (E.y >= E.screenrow) {
     i = E.y - E.screenrow;
@@ -792,9 +793,9 @@ void add_char_at(char c, int at, int rowpos) {
     bf_flush();
     // bf(E.r[i].content, E.r[i].size);
   }
- }
+}
 
- void refresh_screen(void) {
+void refresh_screen(void) {
   /*
   As we move cursor to home each time during refresh, we just erase from
   current line i.e. the first, to the last line
@@ -819,11 +820,11 @@ void add_char_at(char c, int at, int rowpos) {
   // bf(NULL, "\x1b[?25h");
   bf_flush();
   return;
- }
+}
 
- // Program Driver
+// Program Driver
 
- int main(int argc, char *argv[]) {
+int main(int argc, char *argv[]) {
   // TODO: Accept only 1 argument(i.e. just the program name & nothing else)
   // too
   if (argc < 2) {
@@ -851,7 +852,7 @@ void add_char_at(char c, int at, int rowpos) {
 
     case '?':
       fprintf(stderr,
-	      "Unrecognized Option. Use --help to display allowed options");
+              "Unrecognized Option. Use --help to display allowed options");
       return -1;
     }
   }
@@ -873,13 +874,13 @@ void add_char_at(char c, int at, int rowpos) {
   editor_log("%d [INFO]: Initiated raw mode\n", time(NULL));
   // int row, col;
   get_window_size(&E.screenrow, &E.screencol);
-  if (file){
+  if (file) {
     bootstrap_file(file_name);
-  }    
+  }
   // get_cursor_position(&y, &x);
   // editor_log("row: %d, col: %d\n", y, x);
   while (1) {
-    refresh_screen();    
+    refresh_screen();
     handle_key_press();
     bf_flush();
   }
