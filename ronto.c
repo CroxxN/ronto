@@ -44,7 +44,7 @@ static struct buf b = {NULL, 0};
 static struct Terminal term = {NULL, 0, STDIN_FILENO};
 
 void editor_log(char *s, ...) {
-nnnnnnnnnn  va_list v;
+  va_list v;
   va_start(v, s);
   vfprintf(E.log, s, v);
 }
@@ -374,7 +374,6 @@ void remove_row(int row) {
   // TODO: Make the code dry
   // if (!E.r[row].content) return; // Haha silly segfault
   if (E.r[row].size < 1) {
-
     E.x = E.r[row - 1].size - 2;
     E.y--;
     E.numrow--;
@@ -753,15 +752,18 @@ void add_char_at(char c, int at, int rowpos) {
 
  // TODO: Solve bugs
  void expand_rows(void) {
-  int i = 0, y = 0, size;
+  int i = 0, y = 0, size, row_size=E.numrow;
   if (E.y > E.screenrow) {
     i = E.y - E.screenrow;
+  }
+  if (E.numrow > E.screenrow){
+    row_size = E.screenrow;
   }
   if (E.x > E.screencol) {
     y = E.x - E.screencol;
   }
 
-  for (; i < E.numrow; i++) {
+  for (; i < row_size; i++) {
     if (E.r[i].content == NULL)
       return;
     // TODO: Fix bugs
