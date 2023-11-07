@@ -402,7 +402,6 @@ void remove_row(int row) {
   // }
 }
 
-// TODO: Implemet adding rows, NULL checking etc, here itself
 void add_char_at(char c, int at, int rowpos) {
   if (!E.r[rowpos].content) {
     add_row(1, "", 0);
