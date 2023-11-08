@@ -10,6 +10,13 @@
 
 * -> Important
 
+## Features:
+
+- Open, edit and save files
+- Open a new file and start editing
+- Line overflow handeling
+- Row overflow handeling
+- Minimal reliance on terminal escape sequnce (Deletion, movement, etc is implemented, uses terminal escape sequence to change position of cursor)
 
 ## How to use? 
 

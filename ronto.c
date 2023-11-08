@@ -175,7 +175,8 @@ int enable_raw_mode(void) {
 
   term.is_raw = 1;
   if (tcsetattr(term.fd, TCSAFLUSH, &raw) == -1) {
-    perror("Failed to set terminal to raw mode");
+    editor_log("Failed to put the terminal in raw mode");
+    perror("Failed to put the terminal in raw mode");
     return -1;
   }
   return 0;
@@ -414,6 +415,8 @@ void add_char_at(char c, int at, int rowpos) {
   if (!E.r[rowpos].content) {
     add_row(rowpos, "", 0);
     // E.r[rowpos].content = malloc(1);
+    if (E.r[rowpos].content == NULL & E.y < E.numrow)
+      E.r[rowpos].content = malloc(1);
     assert(E.r[rowpos].content != NULL);
   }
   // if (sizeof(E.r[rowpos].content)>at+1){
