@@ -312,6 +312,24 @@ void bootstrap_file(char *file) {
   }
 }
 
+// like buf but prints to the stdout immediate instead of storing
+void bf_once(char *buf, ...){
+  int buf_len = strlen(buf);
+
+  if (buf_len < 1)
+    return;
+  // Grab the variadic arguments
+  va_list v;
+  va_start(v, buf);
+
+  char *f_buf = malloc(buf_len);
+  vsprintf(f_buf, buf, v);
+  if (!f_buf)
+    return;
+  write(STDOUT_FILENO, f_buf, buf_len);
+  va_end(v);
+}
+
 // A buffer formatter. It appends messages to be sent to the std output, and
 // flushes them all at once.
 void bf(char *buf, ...) {
@@ -814,13 +832,13 @@ void refresh_screen(void) {
 
   char *write_buf = "\x1b[H\x1b[J";
   write(STDOUT_FILENO, write_buf, strlen(write_buf));
-  // bf(NULL, "\x1b[H\x1b[J");
   // TODO: Expand tabs to spaces
+  bf_once("\x1b[?25l");
   expand_rows();
 
   // Shift cursor to the current postion
   shift_cursor();
-  // bf(NULL, "\x1b[?25h");
+  bf_once("\x1b[?25h");
   bf_flush();
   return;
 }

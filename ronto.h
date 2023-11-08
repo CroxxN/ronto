@@ -103,6 +103,7 @@ void xclp_cpy(void);
 void save_file_temp(ssize_t size, char *strings);
 void save_file(void);
 void bootstrap_file(char *file);
+void bf_once(char *buf, ...);
 void bf(char *buf, ...);
 void bf_flush(void);
 int add_row(int pos, char* buf, ssize_t len);
