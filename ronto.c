@@ -415,6 +415,10 @@ void remove_row(int row) {
 }
 
 void add_char_at(char c, int at, int rowpos) {
+  if (at < 0 || rowpos <0 ){
+    editor_log("Error has occured. at=%d, pos=%d\n", at, rowpos);
+    return;
+  }
   if (!E.r[rowpos].content) {
     add_row(rowpos, "", 0);
     // E.r[rowpos].content = malloc(1);
