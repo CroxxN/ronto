@@ -14,6 +14,7 @@
 static char FILE_TEMPLATE[] = "Untitled-XXXXXX";
 
 // For printing values to the stdout file descriptor
+// DON'T USE -- See editor_log()
 void dbg(char *s, ...) {
   va_list v;
   va_start(v, s);
@@ -107,13 +108,12 @@ bool init_editor(char *file) {
   E.mode = NORMAL;
   E.log = fopen("log", "a");
   get_window_size(&E.screenrow, &E.screencol);
-  if (fopen(file, "r") == NULL) {
-    E.file = fopen(file, "w");
+  if (fopen(file, "rb") == NULL) {
+    E.file = fopen(file, "wb");
     return false;
   }
-  E.file = fopen(file, "r+");
+  E.file = fopen(file, "rb+");
   assert(E.file != NULL);
-  // Actually use this line
   return true;
 }
 
@@ -135,7 +135,7 @@ void disable_raw_mode(void) {
   free(E.r);
   // Clear the alternate screen
   bf("\x1b[H\x1b[2J");
-  // write(STDOUT_FILENO, "\x1b[H\x1b[2J", 7);
+
   // Switch back to normal screen -- NOT Specifically VT100, but should work
   // on most modern terminals and emulators. If the terminal is not capable of
   // such feature, just discard the escape sequence.
@@ -242,9 +242,10 @@ void xclp_cpy(void) {
 
   // Use xclip for ~x11 and wl-copy for ~wayland
   FILE *clipboard = popen("xclip -selection clipboard", "w");
-  if (clipboard != NULL)
+  if (clipboard != NULL) {
+    editor_log("Using wl-copy");
     clipboard = popen("wl-copy", "w");
-
+  }
   fprintf(clipboard, "%s", s);
 
   // ignore returned value
@@ -272,12 +273,7 @@ void save_file(void) {
   ssize_t size = 0;
   char *strings = rowstostr(&size);
   // TODO: Error handeling
-  // if (!E.file) {
-  //   save_file_temp(size, strings);
-  //   return;
-  // }
   fputs(strings, E.file);
-  // For now, just indicate that we have saved it.
   E.save = true;
   free(strings);
   strings = NULL;
@@ -286,7 +282,7 @@ void save_file(void) {
 }
 
 void bootstrap_file(char *file) {
-  FILE *f = fopen(file, "r");
+  FILE *f = fopen(file, "rb");
   struct stat fstat;
   size_t file_size;
   fseek(f, 0, SEEK_END);
@@ -313,7 +309,7 @@ void bootstrap_file(char *file) {
 }
 
 // like buf but prints to the stdout immediate instead of storing
-void bf_once(char *buf, ...){
+void bf_once(char *buf, ...) {
   int buf_len = strlen(buf);
 
   if (buf_len < 1)
@@ -364,21 +360,13 @@ void bf_flush(void) {
 
 int add_row(int pos, char *buf, ssize_t len) {
   E.r = realloc(E.r, sizeof(row) * (E.numrow + 1));
-  // "Error" Handeling
+  // Error "Handeling"
   assert(E.r != NULL);
 
   E.r[pos].idx = pos;
 
   if (pos < E.numrow) {
-    // dbg("Run");
     // FIX:  BUG
-    // memmove(E.r + pos + 1, E.r + pos,
-    //         sizeof(E.r[0]) * (E.numrow - pos)); // Implicit object
-    //         creation
-    // E.r[pos+1].content = realloc(E.r[pos+1].content,2);
-    // memcpy(E.r[pos+1].content, "\r\n", 2);
-    // for (int i = pos + 1; i < E.numrow; i++)
-    //   E.r[i].idx++;
     memmove(E.r + pos + 2, E.r + pos + 1,
             sizeof(E.r[0]) * (E.numrow - pos - 1));
     E.r[pos + 1].content = malloc(len);
@@ -424,9 +412,6 @@ void remove_row(int row) {
   E.y--;
   E.numrow--;
   E.r = realloc(E.r, sizeof(E.r[0]) * E.numrow);
-  // if (E.rowoff>0){
-  //   E.coloff--;
-  // }
 }
 
 void add_char_at(char c, int at, int rowpos) {
@@ -437,9 +422,6 @@ void add_char_at(char c, int at, int rowpos) {
       E.r[rowpos].content = malloc(1);
     assert(E.r[rowpos].content != NULL);
   }
-  // if (sizeof(E.r[rowpos].content)>at+1){
-  //   E.r[rowpos].size = sizeof(E.r[rowpos].content) + 1;
-  // }
   // 1+ Hours of BUG.
   E.r[rowpos].content = realloc(E.r[rowpos].content, E.r[rowpos].size + 1);
   // move all the characters to the right when a character is added to the
@@ -459,10 +441,6 @@ void add_char_at(char c, int at, int rowpos) {
 void insert_key(char c) {
   if (iscntrl(c))
     return;
-  // int rp = E.rowoff + E.y;
-  // int cp = E.coloff + E.x;
-  // int rp = E.y;
-  // int cp = E.x;
   if (E.x >= E.screencol) {
     E.coloff++;
     // E.x = 0;
@@ -473,12 +451,6 @@ void insert_key(char c) {
   }
   add_char_at(c, E.x, E.y);
   E.x++;
-  // if (E.y == E.r[rp].size - 1) {
-  //   E.x++;
-  //   E.y = 0;
-  // } else {
-  //   E.y++;
-  // }
 }
 
 // TODO: Fix bugs
@@ -490,7 +462,6 @@ void delete_at(int rpos, int at) {
   if (at < E.r[rpos].size) {
     memmove(E.r[rpos].content + at, E.r[rpos].content + at + 1,
             E.r[rpos].size - at);
-    // bf("\x1b[%dD", E.r[rpos].size - E.x);
   }
   E.r[rpos].content = realloc(E.r[rpos].content, E.r[rpos].size);
 }
@@ -505,7 +476,6 @@ void e_delete(void) {
 
   if (E.x < 1 && E.y > 0) {
     // if at the beginning of the line and pressed delete, remove the
-    // E.y(\r\n char)
     remove_row(E.y);
     return;
   }
@@ -549,7 +519,6 @@ void enter_key(void) {
   char *buf = NULL;
   if (cp < size) {
     buf = E.r[rp].content + cp + 1;
-    // add_row(rp+1, E.r[rp].content + cp + 1, size);
   }
   // Append carriage return & newline to every row when enter key is pressed
   memcpy(E.r[rp].content + E.r[rp].size, "\r\n", 2);
@@ -557,20 +526,14 @@ void enter_key(void) {
   E.y++;
   E.x = 0;
   E.r[rp].size += 2;
-  // if (E.y >= E.screenrow){
-  //   E.rowoff++;
-  // }
   return;
 }
 
 void shift_cursor(void) {
   if (!E.r)
     return;
-  // int rp = E.rowoff + E.y;
-  // int cp = E.coloff + E.x;
 
   // Position the cursor at the current E.y row and E.x column
-  // if (cp<=1) cp = -1;
   if (E.y == E.numrow - 1 && E.x > E.r[E.y].size) {
     return;
   }
@@ -581,7 +544,6 @@ void shift_cursor(void) {
 // TODO: BUG
 void arrow_key(int key) {
 
-  // If at the begginning of the editor, do nothing
   if (!E.r)
     return;
 
@@ -590,8 +552,6 @@ void arrow_key(int key) {
   int cp = E.x;
 
   // If at the end of everything, do nothing
-  // if (key == ARROW_DOWN && rp == E.numrow)
-  //   return;
 
   int row_factor = 0;
   int col_factor = 0;
@@ -600,6 +560,7 @@ void arrow_key(int key) {
   // TODO: Make separate functions?
 
   if (key == ARROW_LEFT) {
+    // If at the begginning of the editor, do nothing
     if (rp < 1 && cp < 1)
       return;
     if (cp < 1) {
@@ -634,8 +595,6 @@ void arrow_key(int key) {
       return;
 
     row_factor = -1;
-    /* E.y--; */
-    /* return; */
   } else if (key == ARROW_DOWN) {
     // If trying to go beyond the last line, do nothing
     if (E.y >= E.numrow - 1)
@@ -739,14 +698,11 @@ int handle_key_press(void) {
     // no-op
   case -1:
     return 0;
-    // break;
   case CTRL_Q:
     write(STDOUT_FILENO, qmessage, strlen(qmessage));
     exit(0);
-    // break;
 
   case CTRL_S:
-    // write(STDOUT_FILENO, smessage, strlen(smessage));
     editor_log("%s", smessage);
     save_file();
     return 0;
@@ -781,7 +737,7 @@ int handle_key_press(void) {
   }
 }
 
-// TODO: Solve bugs
+// TODO: Solve ugs
 void expand_rows(void) {
   int i = 0, y = 0, size, row_size = E.numrow;
   if (E.y >= E.screenrow) {
@@ -798,11 +754,6 @@ void expand_rows(void) {
     if (E.r[i].content == NULL)
       return;
     // TODO: Fix bugs
-    // if (E.x < E.screencol){
-    //   size = E.r[i].size;
-    // }else{
-    //   size = E.r[i].size - y;
-    // }
     if ((E.x < E.screencol) && (E.r[i].size) > E.screencol) {
       size = E.screencol;
     } else if ((E.x >= E.screencol) && (E.r[i].size >= E.screencol)) {
@@ -812,7 +763,6 @@ void expand_rows(void) {
     }
     write(STDOUT_FILENO, E.r[i].content + y, size);
     bf_flush();
-    // bf(E.r[i].content, E.r[i].size);
   }
 }
 
@@ -824,11 +774,6 @@ void refresh_screen(void) {
   We can't directly flush everything after the expand_rows call. If we're to
   do so, we need to copy the string from content to the flush buffer.
   */
-
-  // Flush pre-existing data
-  // bf_flush();
-  // bf(NULL, "\x1b[?25l");
-  // bf_flush();
 
   char *write_buf = "\x1b[H\x1b[J";
   write(STDOUT_FILENO, write_buf, strlen(write_buf));
@@ -847,7 +792,6 @@ void refresh_screen(void) {
 
 int main(int argc, char *argv[]) {
   // TODO: Accept only 1 argument(i.e. just the program name & nothing else)
-  // too
   if (argc < 2) {
     printf("Error: \x1b[1;31mNo Arguments Supplied\x1b[0m\n");
     printf("Usage: ronto -[option] <file_name>\n");
@@ -877,14 +821,10 @@ int main(int argc, char *argv[]) {
       return -1;
     }
   }
-  /* if (file) { */
-  /*   editor_log("Found file %s", file_name); */
-  /* } */
-  /* // Goto alternate screen buffer & clear put the cursor to home position */
+  // Goto alternate screen buffer & clear put the cursor to home position */
   bf("\x1b[?1049h\x1b[H");
   // bf("\x1b[7l");
   bf_flush();
-  // write(STDOUT_FILENO, "\x1b[?1049h", strlen("\x1b[?1049h"));
 
   atexit(disable_raw_mode);
 
@@ -899,7 +839,6 @@ int main(int argc, char *argv[]) {
     bootstrap_file(file_name);
   }
   // get_cursor_position(&y, &x);
-  // editor_log("row: %d, col: %d\n", y, x);
   while (1) {
     refresh_screen();
     handle_key_press();
