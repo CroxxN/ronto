@@ -111,10 +111,10 @@ bool init_editor(char *file) {
   E.log = fopen("log", "a");
   get_window_size(&E.screenrow, &E.screencol);
   if (fopen(file, "rb") == NULL) {
-    E.file = fopen(file, "wb");
+    E.file = fopen(file, "w");
     return false;
   }
-  E.file = fopen(file, "rb+");
+  E.file = fopen(file, "r+");
   assert(E.file != NULL);
   return true;
 }
@@ -275,7 +275,7 @@ void save_file(void) {
   ssize_t size = 0;
   char *strings = rowstostr(&size);
   // TODO: Error handeling
-  fputs(strings, E.file);
+  if(fputs(strings, E.file) != 0) return;
   E.save = true;
   free(strings);
   strings = NULL;
@@ -289,6 +289,10 @@ void bootstrap_file(char *file) {
   size_t file_size;
   fseek(f, 0, SEEK_END);
   file_size = ftell(f);
+
+  if (file_size < 1)
+    return;
+
   char *lines = malloc(file_size);
   fseek(f, 0, SEEK_SET);
   fread(lines, 1, file_size, f);
@@ -317,6 +321,7 @@ void bootstrap_file(char *file) {
     }
     i++;
   }
+  fclose(f);
 }
 
 // like buf but prints to the stdout immediate instead of storing
