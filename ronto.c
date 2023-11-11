@@ -11,6 +11,7 @@
 #include <time.h>
 #include <unistd.h>
 
+// Must be a char array
 static char FILE_TEMPLATE[] = "Untitled-XXXXXX";
 
 // For printing values to the stdout file descriptor
@@ -102,6 +103,7 @@ bool init_editor(char *file) {
 
   // yes. DRY code for you.
   E.x = E.y = E.numrow = E.coloff = E.rowoff = E.screenrow = E.screencol = 0;
+  E.tabsize = 4;
   E.save = false;
   E.r = NULL;
   E.file = NULL;
@@ -297,6 +299,15 @@ void bootstrap_file(char *file) {
   E.y = 0;
   while (token != NULL) {
     int size = strlen(token);
+    for (int i=0; i<size; i++){
+      if (token[i]=='\t'){
+        token[i] = ' ';
+        token = realloc(token, size - 1);
+        memmove(token+i+2, token+i+1, size+1);
+        token[i+1] = ' ';
+        size++;
+      }
+    }
     add_row(i, token, size);
     token = strtok(NULL, "\r\n");
     if (token != NULL) {
@@ -456,7 +467,10 @@ void insert_key(char c) {
   add_char_at(c, E.x, E.y);
   E.x++;
 }
-
+void insert_tab(void){
+  for (int i=0; i<E.tabsize; i++)
+    insert_key(' ');
+}
 // TODO: Fix bugs
 void delete_at(int rpos, int at) {
   if (rpos == 0 && at < 1) {
@@ -661,6 +675,8 @@ int key_up(void) {
       }
       // Handle Escape Sequence
       return -1;
+    case TAB:
+      return TAB;
     default:
       return seq[0];
     }
@@ -731,6 +747,9 @@ int handle_key_press(void) {
     enter_key();
     E.save = false;
     return 1;
+  case TAB:
+    insert_tab();
+    E.save = false;
   default:
     if (E.mode == NORMAL)
       return 0;

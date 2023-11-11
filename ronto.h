@@ -53,6 +53,7 @@ struct Editor {
   int numrow;
   int coloff;
   int rowoff;
+  int tabsize;
   int screenrow;
   int screencol;
   bool save;
@@ -110,6 +111,7 @@ int add_row(int pos, char* buf, ssize_t len);
 void remove_row(int row);
 void add_char_at(char c, int at, int rowpos);
 void insert_key(char c);
+void insert_tab(void);
 void delete_at(int rpos, int at);
 void e_delete(void);
 void enter_between(int row, int col);
