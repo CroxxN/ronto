@@ -62,6 +62,7 @@ struct Editor {
 
   // File stream of the opened file 
   FILE *file;
+  char *file_name;
 
   FILE *log;
   Mode mode;

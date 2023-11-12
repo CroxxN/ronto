@@ -114,8 +114,8 @@ bool init_editor(char *file) {
     E.file = fopen(file, "w");
     return false;
   }
-  E.file = fopen(file, "r+");
-  assert(E.file != NULL);
+  bootstrap_file(file);
+  E.file_name = file;
   return true;
 }
 
@@ -135,6 +135,8 @@ void disable_raw_mode(void) {
   term.is_raw = 0;
   free(term.original_term);
   free(E.r);
+  if (E.file)
+    fclose(E.file);
   // Clear the alternate screen
   bf("\x1b[H\x1b[2J");
 
@@ -143,7 +145,6 @@ void disable_raw_mode(void) {
   // such feature, just discard the escape sequence.
   bf("\x1b[?1049l");
   bf("\x1b[7h");
-  // write(STDOUT_FILENO, "\x1b[?1049l", strlen("\x1b[?1049l"));
   bf_flush();
   // `\x1b[1;32m` is just escape sequence for printing bold, green colored
   // text
@@ -188,24 +189,8 @@ int enable_raw_mode(void) {
 void get_window_size(int *row, int *col) {
   struct winsize w;
   if (ioctl(term.fd, TIOCGWINSZ, &w) != 0) {
-    // Do SOMETHING
-    // Handle when ioctl fails
-
-    /*
-    Currently, this implementation fails of alacritty(atleast), so it
-    silently logs the error, and we wait while to silently seg fauls(kek)
-    int crow, ccol;
-    get_cursor_position(&crow, &ccol);
-    editor_log("crow: %d, ccol:%d\n", crow, ccol);
-    bf("\x1b[999C\x1b[999B");
-    bf_flush();
-    // write(STDOUT_FILENO, "\x1b[999C\x1b[999B", 8);
-    get_cursor_position(row, col);
-    editor_log("row: %d, col: %d", row, col);
-    bf("\x1b[%d;%dH", crow, ccol);
-    bf_flush();
-    */
     editor_log("[ERROR] Failed to get the terminal window size");
+    exit(1);
   }
 
   /*
@@ -241,12 +226,14 @@ char *rowstostr(ssize_t *s) {
 void xclp_cpy(void) {
   ssize_t size = 0;
   char *s = rowstostr(&size);
-
+  FILE *clipboard;
   // Use xclip for ~x11 and wl-copy for ~wayland
-  FILE *clipboard = popen("xclip -selection clipboard", "w");
-  if (clipboard != NULL) {
+  if (!system("which xclip > /dev/null 2>&1")){
+    editor_log("Using xclip");
+    clipboard = popen("xclip -selection clipboard > /dev/null", "w");
+  } else {
     editor_log("Using wl-copy");
-    clipboard = popen("wl-copy", "w");
+    clipboard = popen("wl-copy > /dev/null", "w");
   }
   fprintf(clipboard, "%s", s);
 
@@ -266,19 +253,29 @@ void save_file_temp(ssize_t size, char *strings) {
 
 // DONE
 void save_file(void) {
+  if (E.file)
+    rewind(E.file);
   if (E.save)
     return;
   if (!E.file) {
-    int fd = mkstemp(FILE_TEMPLATE);
-    E.file = fdopen(fd, "w");
+    if (E.file_name) {
+      E.file = fopen(E.file_name, "w");
+      rewind(E.file);
+    }
+    else {
+      int fd = mkstemp(FILE_TEMPLATE);
+      E.file = fdopen(fd, "w");
+    }
   }
   ssize_t size = 0;
   char *strings = rowstostr(&size);
   // TODO: Error handeling
-  if(fputs(strings, E.file) != 0) return;
+  if (fputs(strings, E.file) != 0)
+    return;
   E.save = true;
   free(strings);
   strings = NULL;
+  fflush(E.file);
   editor_log("File saved");
   return;
 }
@@ -826,7 +823,7 @@ int main(int argc, char *argv[]) {
     return -1;
   };
   char c;
-  bool file = 0;
+  // bool file = 0;
   char *file_name = NULL;
   extern char *optarg;
   extern int optind;
@@ -836,7 +833,7 @@ int main(int argc, char *argv[]) {
       break;
 
     case 'f':
-      file = 1;
+      // file = 1;
       file_name = optarg;
       break;
     case ':':
@@ -856,16 +853,16 @@ int main(int argc, char *argv[]) {
 
   atexit(disable_raw_mode);
 
-  file = init_editor(file_name);
+  init_editor(file_name);
   editor_log("%d [INFO]: Initiated Editor\n", time(NULL));
   // int x, y;
   enable_raw_mode();
   editor_log("%d [INFO]: Initiated raw mode\n", time(NULL));
   // int row, col;
   get_window_size(&E.screenrow, &E.screencol);
-  if (file) {
-    bootstrap_file(file_name);
-  }
+  // if (file) {
+  //   bootstrap_file(file_name);
+  // }
   // get_cursor_position(&y, &x);
   while (1) {
     refresh_screen();
