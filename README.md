@@ -1,5 +1,8 @@
 # A Work-in-Progress text editor
 
+> [!WARNING]
+> Currently, only supports linux. Not tested in Windows.
+
 ## TODO: 
 
 - [ ] Fix text horizontal overflow bugs
