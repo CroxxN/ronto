@@ -208,15 +208,21 @@ char *rowstostr(ssize_t *s) {
   for (int i = 0; i < E.numrow; i++)
     size += E.r[i].size;
   *s = size;
+  int lf_size = size - (E.numrow-1);
   char *strs;
-  strs = malloc(size);
+  strs = malloc(lf_size);
   assert(strs != NULL);
 
-  for (int i = 0; i < E.numrow; i++) {
+  for (int i = 0; i < E.numrow-1; i++) {
     assert(E.r[i].content != NULL);
-    memcpy(strs, E.r[i].content, E.r[i].size);
+    memcpy(strs, E.r[i].content, E.r[i].size-2);
+    // crlf to lf
+    strs[E.r[i].size-1] = '\n';
     strs += E.r[i].size;
   }
+  assert(E.r[E.numrow-1].content != NULL);
+  memcpy(strs, E.r[E.numrow-1].content, E.r[E.numrow-1].size);
+  strs += E.r[E.numrow-1].size;
   *strs = '\0';
   strs -= size;
   return strs;
@@ -703,6 +709,8 @@ int key_up(void) {
       E.x = (E.y >= E.numrow - 1) ? E.r[E.y].size : E.r[E.y].size - 2;
       E.mode = INSERT;
       break;
+    case 'd':
+      // TODO: Implement remove line
     case 'x':
       return BACKSPACE;
       // TODO: remove this temporary "fix"
