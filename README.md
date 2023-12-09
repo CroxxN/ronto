@@ -26,8 +26,8 @@
 - `git clone <this_repo>`
 - `make` for build with no debug info
 - or `make debug `for  build with debug info
-- zsh```> ./ronto -n``` for scratch buffer
-- zsh```> ./ronto -f <file_name>``` to open/create file
+- ```> ./ronto -n``` for scratch buffer
+- ```> ./ronto -f <file_name>``` to open/create file
 - `C-q` to quit, `C-s` to save
 
 ### Starts in vim mode. Hit `i` to start editing
