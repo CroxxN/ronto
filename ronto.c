@@ -203,7 +203,7 @@ void get_window_size(int *row, int *col) {
 }
 
 // Collapse all `E->r`s to a single string
-char *rowstostr(ssize_t *s) {
+char *rowstostr_bf(ssize_t *s) {
   ssize_t size = 0;
   for (int i = 0; i < E.numrow; i++)
     size += E.r[i].size;
@@ -223,6 +223,31 @@ char *rowstostr(ssize_t *s) {
   assert(E.r[E.numrow-1].content != NULL);
   memcpy(strs, E.r[E.numrow-1].content, E.r[E.numrow-1].size);
   strs += E.r[E.numrow-1].size;
+  *strs = '\0';
+  strs -= size;
+  return strs;
+}
+
+char *rowstostr(ssize_t *s) {
+  ssize_t size = 0;
+  for (int i = 0; i < E.numrow; i++)
+    size += E.r[i].size;
+  *s = size;
+  size -= E.numrow -1;
+  char *strs;
+  strs = malloc(size);
+  assert(strs != NULL);
+
+  for (int i = 0; i < E.numrow-1; i++) {
+    assert(E.r[i].content != NULL);
+    E.r[i].content[E.r[i].size-2] = '\n'; // insane mental and memory gymnastics, ik
+    memcpy(strs, E.r[i].content, E.r[i].size-1);
+    strs += E.r[i].size-1;
+    E.r[i].content[E.r[i].size-2] = '\r';
+  }
+  assert(E.r[E.numrow-1].content != NULL);
+  memcpy(strs, E.r[E.numrow-1].content, E.r[E.numrow-1].size);
+  strs += E.r[E.numrow].size;
   *strs = '\0';
   strs -= size;
   return strs;
