@@ -63,7 +63,7 @@ int isalnum_str(char *string) {
   return 0;
 }
 
-int tabreplce(char *target, int pos) {
+int tabreplace(char *target, int pos) {
   (void)target;
   (void)pos;
   return 0;
@@ -142,7 +142,7 @@ void disable_raw_mode(void) {
 
   // Switch back to normal screen -- NOT Specifically VT100, but should work
   // on most modern terminals and emulators. If the terminal is not capable of
-  // such feature, just discard the escape sequence.
+  // such feature, it just discards the escape sequence.
   bf("\x1b[?1049l");
   bf("\x1b[7h");
   bf_flush();
@@ -208,21 +208,21 @@ char *rowstostr_bf(ssize_t *s) {
   for (int i = 0; i < E.numrow; i++)
     size += E.r[i].size;
   *s = size;
-  int lf_size = size - (E.numrow-1);
+  int lf_size = size - (E.numrow - 1);
   char *strs;
   strs = malloc(lf_size);
   assert(strs != NULL);
 
-  for (int i = 0; i < E.numrow-1; i++) {
+  for (int i = 0; i < E.numrow - 1; i++) {
     assert(E.r[i].content != NULL);
-    memcpy(strs, E.r[i].content, E.r[i].size-2);
+    memcpy(strs, E.r[i].content, E.r[i].size - 2);
     // crlf to lf
-    strs[E.r[i].size-1] = '\n';
+    strs[E.r[i].size - 1] = '\n';
     strs += E.r[i].size;
   }
-  assert(E.r[E.numrow-1].content != NULL);
-  memcpy(strs, E.r[E.numrow-1].content, E.r[E.numrow-1].size);
-  strs += E.r[E.numrow-1].size;
+  assert(E.r[E.numrow - 1].content != NULL);
+  memcpy(strs, E.r[E.numrow - 1].content, E.r[E.numrow - 1].size);
+  strs += E.r[E.numrow - 1].size;
   *strs = '\0';
   strs -= size;
   return strs;
@@ -233,20 +233,21 @@ char *rowstostr(ssize_t *s) {
   for (int i = 0; i < E.numrow; i++)
     size += E.r[i].size;
   *s = size;
-  size -= E.numrow -1;
+  size -= E.numrow - 1;
   char *strs;
   strs = malloc(size);
   assert(strs != NULL);
 
-  for (int i = 0; i < E.numrow-1; i++) {
+  for (int i = 0; i < E.numrow - 1; i++) {
     assert(E.r[i].content != NULL);
-    E.r[i].content[E.r[i].size-2] = '\n'; // insane mental and memory gymnastics, ik
-    memcpy(strs, E.r[i].content, E.r[i].size-1);
-    strs += E.r[i].size-1;
-    E.r[i].content[E.r[i].size-2] = '\r';
+    E.r[i].content[E.r[i].size - 2] =
+        '\n'; // insane mental and memory gymnastics, ik
+    memcpy(strs, E.r[i].content, E.r[i].size - 1);
+    strs += E.r[i].size - 1;
+    E.r[i].content[E.r[i].size - 2] = '\r';
   }
-  assert(E.r[E.numrow-1].content != NULL);
-  memcpy(strs, E.r[E.numrow-1].content, E.r[E.numrow-1].size);
+  assert(E.r[E.numrow - 1].content != NULL);
+  memcpy(strs, E.r[E.numrow - 1].content, E.r[E.numrow - 1].size);
   strs += E.r[E.numrow].size;
   *strs = '\0';
   strs -= size;
@@ -259,7 +260,7 @@ void xclp_cpy(void) {
   char *s = rowstostr(&size);
   FILE *clipboard;
   // Use xclip for ~x11 and wl-copy for ~wayland
-  if (!system("which xclip > /dev/null 2>&1")){
+  if (!system("which xclip > /dev/null 2>&1")) {
     editor_log("Using xclip");
     clipboard = popen("xclip -selection clipboard > /dev/null", "w");
   } else {
@@ -292,8 +293,7 @@ void save_file(void) {
     if (E.file_name) {
       E.file = fopen(E.file_name, "w");
       rewind(E.file);
-    }
-    else {
+    } else {
       int fd = mkstemp(FILE_TEMPLATE);
       E.file = fdopen(fd, "w");
     }
@@ -331,12 +331,12 @@ void bootstrap_file(char *file) {
   E.y = 0;
   while (token != NULL) {
     int size = strlen(token);
-    for (int i=0; i<size; i++){
-      if (token[i]=='\t'){
+    for (int i = 0; i < size; i++) {
+      if (token[i] == '\t') {
         token[i] = ' ';
         token = realloc(token, size - 1);
-        memmove(token+i+2, token+i+1, size+1);
-        token[i+1] = ' ';
+        memmove(token + i + 2, token + i + 1, size + 1);
+        token[i + 1] = ' ';
         size++;
       }
     }
@@ -402,6 +402,11 @@ void bf_flush(void) {
   b.l = 0;
 }
 
+// TODO: Implement syntax highlighting here
+// Highlighted keywords: 'int', 'char', 'float', 'struct', functions, bracket
+// pairs((), {}, []).
+void syntax_highlight(char *buf) {}
+
 int add_row(int pos, char *buf, ssize_t len) {
   E.r = realloc(E.r, sizeof(row) * (E.numrow + 1));
   // Error "Handeling"
@@ -459,7 +464,7 @@ void remove_row(int row) {
 }
 
 void add_char_at(char c, int at, int rowpos) {
-  if (at < 0 || rowpos <0 ){
+  if (at < 0 || rowpos < 0) {
     editor_log("Error has occured. at=%d, pos=%d\n", at, rowpos);
     return;
   }
@@ -500,10 +505,16 @@ void insert_key(char c) {
   add_char_at(c, E.x, E.y);
   E.x++;
 }
-void insert_tab(void){
-  for (int i=0; i<E.tabsize; i++)
+
+// To insert tab, we just insert a user-defined
+// tab-size amount of spaces in the buff.
+// NOTE: use '\t' instead?
+void insert_tab(void) {
+  for (int i = 0; i < E.tabsize; i++)
     insert_key(' ');
 }
+
+// Delete a character from the editor's text buff at position (rpos, at){(x,y)}
 // TODO: Fix bugs
 void delete_at(int rpos, int at) {
   if (rpos == 0 && at < 1) {
@@ -526,7 +537,8 @@ void e_delete(void) {
   }
 
   if (E.x < 1 && E.y > 0) {
-    // if at the beginning of the line and pressed delete, remove the
+    // if at the beginning of empty line and
+    // delete if pressed, remove the whole empty line
     remove_row(E.y);
     return;
   }
@@ -539,6 +551,12 @@ void e_delete(void) {
   }
 }
 
+// Insert a new line between two lines
+// if `cprogramminglanguage` and <enter> is pressed
+// like `cproggraming<enter>language`, we get:
+//      "cprogramming
+//       |
+//       language"
 void enter_between(int row, int col) {
   int new_size = E.r[row].size - col;
   add_row(row, E.r[row].content + col, new_size);
@@ -580,6 +598,7 @@ void enter_key(void) {
   return;
 }
 
+// move cursor to the current (x,y) coordinates
 void shift_cursor(void) {
   if (!E.r)
     return;
