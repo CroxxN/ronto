@@ -11,27 +11,23 @@ To use any function, anywhere without the compiler shouting
 #define _POSIX_C_SOURCE 200809L
 
 // Includes
-#include <unistd.h>
 #include <assert.h>
 #include <ctype.h>
 #include <getopt.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <termios.h>
 #include <unistd.h>
-#include <stddef.h>
 
 // struct defs
 
 // Vim-like mode of the editor
-typedef enum {
-  NORMAL,
-  INSERT
-}Mode;
+typedef enum { NORMAL, INSERT } Mode;
 
 // Describes one row of the Editor
 
@@ -43,6 +39,12 @@ typedef struct row {
   char *render;    // content ready for render - with tabs expanded
 } row;
 
+// Syntax highlight color definition
+
+#define BRED "\x1b[1;31m"
+
+// Reset text decorations
+#define END "\x1b[0m"
 
 // Editor config & state
 
@@ -60,7 +62,7 @@ struct Editor {
   // File stream of the temporary file used for saving data
   FILE *temp_file;
 
-  // File stream of the opened file 
+  // File stream of the opened file
   FILE *file;
   char *file_name;
 
@@ -70,7 +72,8 @@ struct Editor {
 
 // a append buffer to flush everything at once
 struct buf {
-  char *seq; int l;
+  char *seq;
+  int l;
 };
 
 // Basic Terminal Structure that holds some frequently used values - #GLOBAL
@@ -86,14 +89,14 @@ struct Terminal {
 
   bool is_raw;
   int fd;
-}; 
+};
 
-// Function defs: 
+// Function defs:
 
 void dbg(char *s, ...);
 void editor_log(char *s, ...);
 int isalnum_str(char *string);
-int tabreplce(char* target, int pos);
+int tabreplce(char *target, int pos);
 int get_cursor_position(int *row, int *col);
 bool init_editor(char *file);
 void disable_raw_mode(void);
@@ -108,7 +111,7 @@ void bootstrap_file(char *file);
 void bf_once(char *buf, ...);
 void bf(char *buf, ...);
 void bf_flush(void);
-int add_row(int pos, char* buf, ssize_t len);
+int add_row(int pos, char *buf, ssize_t len);
 void remove_row(int row);
 void add_char_at(char c, int at, int rowpos);
 void insert_key(char c);
@@ -124,6 +127,5 @@ int key_up(void);
 int handle_key_press(void);
 void expand_rows(void);
 void refresh_screen(void);
-
 
 #endif

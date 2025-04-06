@@ -15,5 +15,8 @@ release: ronto.c
 run: ronto
 	$(RUN)
 
+rm: log
+	rm log Untitled-*
+
 clean: ronto
 	rm ronto

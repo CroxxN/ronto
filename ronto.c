@@ -14,6 +14,15 @@
 // Must be a char array
 static char FILE_TEMPLATE[] = "Untitled-XXXXXX";
 
+// TODO: move this to `ronto.h`
+// syntax highlight buffer
+
+char SYNTAX_WORD[6];
+
+// Enable or disable logging
+// Disabled by default
+int LOGGING = 0;
+
 // For printing values to the stdout file descriptor
 // DON'T USE -- See editor_log()
 void dbg(char *s, ...) {
@@ -46,6 +55,8 @@ static struct buf b = {NULL, 0};
 static struct Terminal term = {NULL, 0, STDIN_FILENO};
 
 void editor_log(char *s, ...) {
+  if (LOGGING == 0)
+    return;
   va_list v;
   va_start(v, s);
   vfprintf(E.log, s, v);
@@ -63,6 +74,7 @@ int isalnum_str(char *string) {
   return 0;
 }
 
+// TODO:
 int tabreplace(char *target, int pos) {
   (void)target;
   (void)pos;
@@ -108,7 +120,10 @@ bool init_editor(char *file) {
   E.r = NULL;
   E.file = NULL;
   E.mode = NORMAL;
-  E.log = fopen("log", "a");
+
+  if (LOGGING != 0)
+    E.log = fopen("log", "a");
+
   get_window_size(&E.screenrow, &E.screencol);
   if (fopen(file, "rb") == NULL) {
     E.file = fopen(file, "w");
@@ -238,19 +253,40 @@ char *rowstostr(ssize_t *s) {
   strs = malloc(size);
   assert(strs != NULL);
 
+  // LOG:
+  editor_log("[INFO] size == %d\n", size);
+
   for (int i = 0; i < E.numrow - 1; i++) {
     assert(E.r[i].content != NULL);
-    E.r[i].content[E.r[i].size - 2] =
-        '\n'; // insane mental and memory gymnastics, ik
+
+    // insane mental and memory gymnastics, ik
+    E.r[i].content[E.r[i].size - 2] = '\n';
+
     memcpy(strs, E.r[i].content, E.r[i].size - 1);
+
     strs += E.r[i].size - 1;
     E.r[i].content[E.r[i].size - 2] = '\r';
   }
+
   assert(E.r[E.numrow - 1].content != NULL);
   memcpy(strs, E.r[E.numrow - 1].content, E.r[E.numrow - 1].size);
-  strs += E.r[E.numrow].size;
+
+  editor_log("[INFO]: strs == %s\n", strs);
+
+  editor_log("[INFO]: E.numrow == %d\n", E.numrow);
+
+  editor_log("[INFO]: E.r[E.numrow].size == %d\n", E.r[E.numrow - 1].size);
+
+  strs += E.r[E.numrow - 1].size;
+
   *strs = '\0';
+
+  editor_log("[INFO]: size == %d\n", size);
+
   strs -= size;
+
+  editor_log("[INFO]: strs == %s\n", strs);
+
   return strs;
 }
 
@@ -301,8 +337,12 @@ void save_file(void) {
   ssize_t size = 0;
   char *strings = rowstostr(&size);
   // TODO: Error handeling
-  if (fputs(strings, E.file) != 0)
-    return;
+  if (fputs(strings, E.file) != 0) {
+    editor_log("[ERROR]: Failed to save file: `fputs(strings, E.file) == 0`\n");
+    editor_log("[INFO] strlen(strings) == %d\n", strlen(strings));
+    // editor_log((char *)E.file);
+  }
+  return;
   E.save = true;
   free(strings);
   strings = NULL;
@@ -398,6 +438,8 @@ void bf_flush(void) {
   write(STDOUT_FILENO, b.seq, b.l);
   // Reset the append buffer
   free(b.seq);
+  // TEST:
+  // free(b.seq);
   b.seq = NULL;
   b.l = 0;
 }
@@ -879,8 +921,11 @@ int main(int argc, char *argv[]) {
   char *file_name = NULL;
   extern char *optarg;
   extern int optind;
-  while ((c = getopt(argc, argv, "nf:")) != -1) {
+  while ((c = getopt(argc, argv, "nlf:")) != -1) {
     switch (c) {
+    case 'l':
+      LOGGING = 1;
+
     case 'n':
       break;
 
@@ -888,6 +933,7 @@ int main(int argc, char *argv[]) {
       // file = 1;
       file_name = optarg;
       break;
+
     case ':':
       fprintf(stderr, "File Name required with the -f Parameter");
       return -1;
