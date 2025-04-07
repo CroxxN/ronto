@@ -447,7 +447,21 @@ void bf_flush(void) {
 // TODO: Implement syntax highlighting here
 // Highlighted keywords: 'int', 'char', 'float', 'struct', functions, bracket
 // pairs((), {}, []).
-void syntax_highlight(char *buf) {}
+int syntax_highlight_check(char *buf) {
+  if (strcmp(buf, "return") == 0)
+    return 1;
+  if (strcmp(buf, "int") == 0)
+    return 1;
+  if (strcmp(buf, "float") == 0)
+    return 1;
+  if (strcmp(buf, "char") == 0)
+    return 1;
+  if (strcmp(buf, "static") == 0)
+    return 1;
+  if (strcmp(buf, "void") == 0)
+    return 1;
+  return 0;
+}
 
 int add_row(int pos, char *buf, ssize_t len) {
   E.r = realloc(E.r, sizeof(row) * (E.numrow + 1));
@@ -859,6 +873,9 @@ int handle_key_press(void) {
 // TODO: Solve ugs
 void expand_rows(void) {
   int i = 0, y = 0, size, row_size = E.numrow;
+
+  // temp container to hold syntax-highlighted strings
+
   if (E.y >= E.screenrow) {
     i = E.y - E.screenrow;
   }
@@ -880,8 +897,57 @@ void expand_rows(void) {
     } else {
       size = E.r[i].size - y;
     }
-    write(STDOUT_FILENO, E.r[i].content + y, size);
+
+    int syntax_size = 0;
+
+    char *highlighted = NULL;
+    // higlighted = malloc(size);
+
+    char *token;
+
+    char *temp = malloc(strlen(E.r[i].content + y));
+    strcpy(temp, E.r[i].content + y);
+
+    token = strtok(temp, " ");
+
+    // FIX BUGS:
+    while (token != NULL) {
+      // switch (token) {
+      //   case 're'
+      // }
+      if (syntax_highlight_check(token)) {
+        highlighted = realloc(highlighted, syntax_size + strlen(token) + 11);
+        // start
+        strcpy(highlighted + syntax_size, "\x1b[0;31m");
+        syntax_size += 7;
+
+        strcpy(highlighted + syntax_size, token);
+        syntax_size += strlen(token);
+
+        // end
+        strcpy(highlighted + syntax_size, "\x1b[0m");
+        syntax_size += 4;
+
+      } else {
+        highlighted = realloc(highlighted, syntax_size + strlen(token));
+        strcpy(highlighted + syntax_size, token);
+        syntax_size += strlen(token);
+      }
+      token = strtok(NULL, " ");
+      // check if there still are other words. if so, add a space
+      if (token != NULL) {
+        highlighted = realloc(highlighted, syntax_size + 1);
+        strcpy(highlighted + syntax_size, " ");
+        syntax_size++;
+      }
+    }
+    // highlighted = realloc(highlighted, syntax_size + 1);
+    // strcpy(highlighted + syntax_size, "\n");
+    // write(STDOUT_FILENO, E.r[i].content + y, size);
+    write(STDOUT_FILENO, highlighted, syntax_size);
     bf_flush();
+    free(temp);
+    free(highlighted);
   }
 }
 

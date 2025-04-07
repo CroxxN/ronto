@@ -1,4 +1,5 @@
 # A minimal flush-or-no-flush terminal text editor
+
 > [!WARNING]
 > Not tested on Windows.<br>
 > Starts in Vim mode. Hit `i` to start editing
