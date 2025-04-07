@@ -6,10 +6,10 @@ CFLAGS=-Wall -Wpedantic -Wextra -std=c99
 RUN = ./ronto -n
 
 ronto: ronto.c
-	$(CC) ronto.c $(CFLAGS) -ggdb -o ronto
+	$(CC) ronto.c token.c $(CFLAGS) -ggdb -o ronto
 
 release: ronto.c
-	$(CC) ronto.c $(CFLAGS) -o ronto
+	$(CC) ronto.c token.c $(CFLAGS) -o ronto
 
 
 run: ronto

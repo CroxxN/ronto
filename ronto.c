@@ -1,6 +1,8 @@
 
 // TODO: Clean up these reduntant includes
 #include "ronto.h"
+#include "token.h"
+
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -79,6 +81,21 @@ int tabreplace(char *target, int pos) {
   (void)target;
   (void)pos;
   return 0;
+}
+
+// extend string
+char *extend_string(char *dest, char *source) {
+  if (source == NULL)
+    return NULL;
+
+  if (dest == NULL) {
+    dest = malloc(strlen(source) + 1);
+    dest[0] = '\0';
+  } else
+    dest = realloc(dest, strlen(dest) + strlen(source) + 1);
+
+  dest = strcat(dest, source);
+  return dest;
 }
 
 int get_cursor_position(int *row, int *col) {
@@ -383,8 +400,9 @@ void bootstrap_file(char *file) {
     add_row(i, token, size);
     token = strtok(NULL, "\r\n");
     if (token != NULL) {
-      E.r[i].content = realloc(E.r[i].content, size + 2);
+      E.r[i].content = realloc(E.r[i].content, size + 3);
       memcpy(E.r[i].content + size, "\r\n", 2);
+      E.r[i].content[size + 2] = '\0';
       E.r[i].size += 2;
     }
     i++;
@@ -581,7 +599,8 @@ void delete_at(int rpos, int at) {
     memmove(E.r[rpos].content + at, E.r[rpos].content + at + 1,
             E.r[rpos].size - at);
   }
-  E.r[rpos].content = realloc(E.r[rpos].content, E.r[rpos].size);
+  E.r[rpos].content = realloc(E.r[rpos].content, E.r[rpos].size + 1);
+  E.r[rpos].content[E.r[rpos].size] = '\0';
 }
 
 void e_delete(void) {
@@ -638,7 +657,7 @@ void enter_key(void) {
     return;
   }
 
-  E.r[rp].content = realloc(E.r[rp].content, E.r[rp].size + 2);
+  E.r[rp].content = realloc(E.r[rp].content, E.r[rp].size + 3);
   assert(E.r[rp].content != NULL);
   int size = E.r[rp].size - cp;
   char *buf = NULL;
@@ -647,6 +666,7 @@ void enter_key(void) {
   }
   // Append carriage return & newline to every row when enter key is pressed
   memcpy(E.r[rp].content + E.r[rp].size, "\r\n", 2);
+  E.r[rp].content[E.r[rp].size + 2] = '\0';
   add_row(rp + 1, buf, size);
   E.y++;
   E.x = 0;
@@ -871,10 +891,8 @@ int handle_key_press(void) {
 }
 
 // TODO: Solve ugs
-void expand_rows(void) {
+void expand_rows_temps(void) {
   int i = 0, y = 0, size, row_size = E.numrow;
-
-  // temp container to hold syntax-highlighted strings
 
   if (E.y >= E.screenrow) {
     i = E.y - E.screenrow;
@@ -897,57 +915,111 @@ void expand_rows(void) {
     } else {
       size = E.r[i].size - y;
     }
+    editor_log("[INFO] E.r[i].content + y == %s\n", E.r[i].content);
+    write(STDOUT_FILENO, E.r[i].content + y, size);
+    bf_flush();
+  }
+}
 
-    int syntax_size = 0;
+void print_highlighted(char *line) {
+  char *start = line;
+  while (*start) {
+    // Find the next word boundary
+    char *end = start;
+    while (*end && *end != ' ')
+      end++;
+
+    int len = end - start;
+
+    if (len > 0) {
+      if (syntax_highlight_check(start)) {
+        write(STDOUT_FILENO, "\x1b[0;31m", 7);
+        write(STDOUT_FILENO, start, len);
+        write(STDOUT_FILENO, "\x1b[0m", 4);
+      } else {
+        write(STDOUT_FILENO, start, len);
+      }
+    }
+
+    if (*end == ' ') {
+      write(STDOUT_FILENO, " ", 1);
+      end++; // skip the space
+    }
+
+    start = end;
+  }
+}
+
+void expand_rows(void) {
+  int i = 0, y = 0, size, row_size = E.numrow;
+
+  // temp container to hold syntax-highlighted strings
+
+  if (E.y >= E.screenrow) {
+    i = E.y - E.screenrow;
+  }
+  if (E.numrow >= E.screenrow) {
+    row_size = E.screenrow + i + 1;
+  }
+  if (E.x > E.screencol) {
+    y = E.x - E.screencol + 1;
+  }
+
+  for (; i < row_size; i++) {
+
+    if (E.r[i].content == NULL)
+      return;
+    // TODO: Fix bugs
+    if ((E.x < E.screencol) && (E.r[i].size) > E.screencol) {
+      size = E.screencol;
+    } else if ((E.x >= E.screencol) && (E.r[i].size >= E.screencol)) {
+      size = E.screencol;
+    } else {
+      size = E.r[i].size - y;
+    }
 
     char *highlighted = NULL;
-    // higlighted = malloc(size);
+    // highlighted = malloc(size);
 
     char *token;
 
-    char *temp = malloc(strlen(E.r[i].content + y));
-    strcpy(temp, E.r[i].content + y);
+    char *temp = malloc(strlen(E.r[i].content) + 1);
+    strcpy(temp, E.r[i].content);
 
+    editor_log("[INFO]: E.r[i].content == %s\n", E.r[i].content);
+    // editor_log("[INFO]: temp == %s\n", temp);
     token = strtok(temp, " ");
 
-    // FIX BUGS:
+    // // // FIX BUGS:
     while (token != NULL) {
-      // switch (token) {
-      //   case 're'
-      // }
       if (syntax_highlight_check(token)) {
-        highlighted = realloc(highlighted, syntax_size + strlen(token) + 11);
-        // start
-        strcpy(highlighted + syntax_size, "\x1b[0;31m");
-        syntax_size += 7;
-
-        strcpy(highlighted + syntax_size, token);
-        syntax_size += strlen(token);
-
-        // end
-        strcpy(highlighted + syntax_size, "\x1b[0m");
-        syntax_size += 4;
+        highlighted = extend_string(highlighted, "\x1b[31m");
+        highlighted = extend_string(highlighted, token);
+        highlighted = extend_string(highlighted, "\x1b[0m");
 
       } else {
-        highlighted = realloc(highlighted, syntax_size + strlen(token));
-        strcpy(highlighted + syntax_size, token);
-        syntax_size += strlen(token);
+        highlighted = extend_string(highlighted, token);
       }
+
       token = strtok(NULL, " ");
+
       // check if there still are other words. if so, add a space
       if (token != NULL) {
-        highlighted = realloc(highlighted, syntax_size + 1);
-        strcpy(highlighted + syntax_size, " ");
-        syntax_size++;
+        highlighted = extend_string(highlighted, " ");
       }
     }
-    // highlighted = realloc(highlighted, syntax_size + 1);
-    // strcpy(highlighted + syntax_size, "\n");
-    // write(STDOUT_FILENO, E.r[i].content + y, size);
-    write(STDOUT_FILENO, highlighted, syntax_size);
+    // write(STDOUT_FILENO, "\r\n", 2);
+    // write(STDOUT_FILENO, "\r\x1b[K", 4);
+    if (highlighted != NULL)
+      write(STDOUT_FILENO, highlighted, strlen(highlighted));
+    else
+      editor_log("[ERROR]: highlighted == NULL\n");
+    // print_highlighted(E.r[i].content);
     bf_flush();
-    free(temp);
-    free(highlighted);
+
+    // temp[0] = '\0';
+
+    // free(temp);
   }
 }
 
@@ -1028,6 +1100,8 @@ int main(int argc, char *argv[]) {
   //   bootstrap_file(file_name);
   // }
   // get_cursor_position(&y, &x);
+  editor_log("[INFO] len == %d\n", token_len("hello"));
+
   while (1) {
     refresh_screen();
     handle_key_press();
