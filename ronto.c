@@ -492,20 +492,32 @@ int add_row(int pos, char *buf, ssize_t len) {
     // FIX:  BUG
     memmove(E.r + pos + 2, E.r + pos + 1,
             sizeof(E.r[0]) * (E.numrow - pos - 1));
-    E.r[pos + 1].content = malloc(len);
+    E.r[pos + 1].content = malloc(len + 1);
     memcpy(E.r[pos + 1].content, buf, len);
     E.r[pos + 1].size = len;
+    E.r[pos + 1].content[len] = '\0';
     E.numrow++;
     return 0;
   }
   E.r[pos].size = len;
-  E.r[pos].content = malloc(len);
+  E.r[pos].content = malloc(len + 1);
   E.r[pos].render = NULL;
   E.r[pos].render_size = 0;
   E.numrow++;
-  if (!buf)
+
+  if (!buf) {
+    E.r[pos].content[0] = '\0';
     return 0;
+  }
+
   memcpy(E.r[pos].content, buf, len);
+  editor_log("[INFO]: len == %d\n", len);
+  E.r[pos].content[len] = '\0';
+
+  editor_log("[INFO]: len == %d\n", len);
+  editor_log("[INFO]: strlen(E.r[pos].content) == %d\n",
+             strlen(E.r[pos].content));
+
   return 0;
 }
 
@@ -553,6 +565,7 @@ void add_char_at(char c, int at, int rowpos) {
   E.r[rowpos].content = realloc(E.r[rowpos].content, E.r[rowpos].size + 1);
   // move all the characters to the right when a character is added to the
   // middle of the content buffer.
+  E.r[rowpos].content[E.r[rowpos].size] = '\0';
 
   if (at < E.r[rowpos].size) {
     memmove(E.r[rowpos].content + at + 1, E.r[rowpos].content + at,
@@ -566,7 +579,7 @@ void add_char_at(char c, int at, int rowpos) {
 // TODO: move the `add_row` line to `add_char_at` function
 // NOTE: Usage of E.x and E.y are perfectly valid. DONOT use E.rowoff and shit
 void insert_key(char c) {
-  if (iscntrl(c))
+  if (iscntrl(c) && c != 9)
     return;
   if (E.x >= E.screencol) {
     E.coloff++;
@@ -584,8 +597,9 @@ void insert_key(char c) {
 // tab-size amount of spaces in the buff.
 // NOTE: use '\t' instead?
 void insert_tab(void) {
-  for (int i = 0; i < E.tabsize; i++)
-    insert_key(' ');
+  // for (int i = 0; i < E.tabsize; i++)
+  //   insert_key(' ');
+  insert_key(' ');
 }
 
 // Delete a character from the editor's text buff at position (rpos, at){(x,y)}
@@ -635,9 +649,10 @@ void e_delete(void) {
 void enter_between(int row, int col) {
   int new_size = E.r[row].size - col;
   add_row(row, E.r[row].content + col, new_size);
-  E.r[row].content = realloc(E.r[row].content, col + 2);
+  E.r[row].content = realloc(E.r[row].content, col + 3);
   memcpy(E.r[row].content + col, "\r\n", 2);
   E.r[row].size = col + 2;
+  E.r[row].content[E.r[row].size] = '\0';
   E.y++;
   E.x = 0;
 }
@@ -653,20 +668,27 @@ void enter_key(void) {
     return;
   }
   if (cp < E.r[rp].size - 1) {
+    editor_log("[INFO]: Enter Between Pressed\n");
     enter_between(rp, cp);
     return;
+  } else {
+    editor_log("[INFO]: New line created\n");
   }
 
   E.r[rp].content = realloc(E.r[rp].content, E.r[rp].size + 3);
   assert(E.r[rp].content != NULL);
   int size = E.r[rp].size - cp;
-  char *buf = NULL;
+
+  char *buf = "";
+
   if (cp < size) {
+    editor_log("[INFO]: cp < size\n");
     buf = E.r[rp].content + cp + 1;
   }
   // Append carriage return & newline to every row when enter key is pressed
   memcpy(E.r[rp].content + E.r[rp].size, "\r\n", 2);
   E.r[rp].content[E.r[rp].size + 2] = '\0';
+
   add_row(rp + 1, buf, size);
   E.y++;
   E.x = 0;
@@ -844,6 +866,7 @@ int key_up(void) {
 // FEAT: rudimentary functionality complete
 int handle_key_press(void) {
   int c = key_up();
+  editor_log("[INFO] c == %c\n", c);
   switch (c) {
     // no-op
   case -1:
@@ -921,35 +944,6 @@ void expand_rows_temps(void) {
   }
 }
 
-void print_highlighted(char *line) {
-  char *start = line;
-  while (*start) {
-    // Find the next word boundary
-    char *end = start;
-    while (*end && *end != ' ')
-      end++;
-
-    int len = end - start;
-
-    if (len > 0) {
-      if (syntax_highlight_check(start)) {
-        write(STDOUT_FILENO, "\x1b[0;31m", 7);
-        write(STDOUT_FILENO, start, len);
-        write(STDOUT_FILENO, "\x1b[0m", 4);
-      } else {
-        write(STDOUT_FILENO, start, len);
-      }
-    }
-
-    if (*end == ' ') {
-      write(STDOUT_FILENO, " ", 1);
-      end++; // skip the space
-    }
-
-    start = end;
-  }
-}
-
 void expand_rows(void) {
   int i = 0, y = 0, size, row_size = E.numrow;
 
@@ -981,42 +975,62 @@ void expand_rows(void) {
     char *highlighted = NULL;
     // highlighted = malloc(size);
 
-    char *token;
+    // char *token;
 
     char *temp = malloc(strlen(E.r[i].content) + 1);
     strcpy(temp, E.r[i].content);
+    temp[strlen(E.r[i].content)] = '\0';
 
     editor_log("[INFO]: E.r[i].content == %s\n", E.r[i].content);
+    editor_log("strlen(E.r[i].content) == %d\n", strlen(E.r[i].content));
     // editor_log("[INFO]: temp == %s\n", temp);
-    token = strtok(temp, " ");
+    // token = strtok(temp, " ");
 
-    // // // FIX BUGS:
-    while (token != NULL) {
+    // // // // FIX BUGS:
+    // while (token != NULL) {
+    //   if (syntax_highlight_check(token)) {
+    //     highlighted = extend_string(highlighted, "\x1b[31m");
+    //     highlighted = extend_string(highlighted, token);
+    //     highlighted = extend_string(highlighted, "\x1b[0m");
+
+    //   } else {
+    //     highlighted = extend_string(highlighted, token);
+    //   }
+
+    //   token = strtok(NULL, " ");
+
+    //   // check if there still are other words. if so, add a space
+    //   if (token != NULL) {
+    //     highlighted = extend_string(highlighted, " ");
+    //   }
+    // }
+    // // write(STDOUT_FILENO, "\r\n", 2);
+    // // write(STDOUT_FILENO, "\r\x1b[K", 4);
+    // if (highlighted != NULL)
+    //   write(STDOUT_FILENO, highlighted, strlen(highlighted));
+    // else
+    //   editor_log("[ERROR]: highlighted == NULL\n");
+    // // print_highlighted(E.r[i].content);
+    // bf_flush();
+    char **tokens = malloc(sizeof(char **));
+
+    // CHANGE:
+    int token_size = token_tokenize(temp, ' ', &tokens) - 1;
+
+    char *token = NULL;
+
+    while ((token = token_get_next(tokens, &token_size)) != NULL) {
+      editor_log("[INFO]: token == %s\n", token);
       if (syntax_highlight_check(token)) {
         highlighted = extend_string(highlighted, "\x1b[31m");
         highlighted = extend_string(highlighted, token);
         highlighted = extend_string(highlighted, "\x1b[0m");
-
       } else {
         highlighted = extend_string(highlighted, token);
       }
-
-      token = strtok(NULL, " ");
-
-      // check if there still are other words. if so, add a space
-      if (token != NULL) {
-        highlighted = extend_string(highlighted, " ");
-      }
     }
-    // write(STDOUT_FILENO, "\r\n", 2);
-    // write(STDOUT_FILENO, "\r\x1b[K", 4);
-    if (highlighted != NULL)
-      write(STDOUT_FILENO, highlighted, strlen(highlighted));
-    else
-      editor_log("[ERROR]: highlighted == NULL\n");
-    // print_highlighted(E.r[i].content);
-    bf_flush();
 
+    write(STDOUT_FILENO, highlighted, strlen(highlighted));
     // temp[0] = '\0';
 
     // free(temp);
@@ -1035,12 +1049,12 @@ void refresh_screen(void) {
   char *write_buf = "\x1b[H\x1b[J";
   write(STDOUT_FILENO, write_buf, strlen(write_buf));
   // TODO: Expand tabs to spaces
-  bf_once("\x1b[?25l");
+  bf_once("\x1b[?25l"); // hide cursor
   expand_rows();
 
   // Shift cursor to the current postion
   shift_cursor();
-  bf_once("\x1b[?25h");
+  bf_once("\x1b[?25h"); // show cursor
   bf_flush();
   return;
 }
