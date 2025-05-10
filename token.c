@@ -1,54 +1,96 @@
 #include "token.h"
+#include "ronto.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
-char *token_push_to_string(char *str, char c) {
-  int len = 0;
-  if (str != NULL) {
-    len = strlen(str);
-  }
-  str = realloc(str, len + 2);
+// typedef struct {
+//   int len;
+//   char **inner;
+// } Token;
 
-  assert(str != NULL);
+int str_range(char *string, char delimeter) {
+  if (string == NULL)
+    return -1;
 
-  str[len] = c;
-  str[len + 1] = '\0';
+  int index = 0;
 
-  return str;
+  if (string[0] == delimeter)
+
+    for (int i = 0; i < strlen(string); i++)
+      if (string[i] == delimeter)
+        index++;
+      else
+        break;
+
+  else
+
+    for (int i = 0; i < strlen(string); i++)
+      if (string[i] != delimeter)
+        index++;
+      else
+        break;
+
+  return index;
 }
 
-int token_tokenize(char *str, char delimeter, char ***tokens) {
+// int token_tokenize(char *str, char delimeter, char ***tokens) {}
+// TODO: Reimplement the tokenize logic
 
-  // TODO: Reimplement the tokenize logic
+Token *token_tokenize(char *str, char delimeter) {
+  if (str == NULL)
+    return NULL;
+
+  Token *t = malloc(sizeof(Token));
+
+  t->len = 0;
+  t->curr = 0;
+
+  char *token;
+
+  char *holder = str;
+  char original_strlen = strlen(holder);
+
+  int token_nums = 0;
+
+  for (int i = 0; i < original_strlen; i++) {
+
+    int range = str_range(holder + i, delimeter);
+
+    t->len++;
+
+    t->inner = realloc(t->inner, t->len);
+
+    // TODO: increase the index
+    *(t->inner + token_nums) = malloc(range + 1);
+    memcpy(*(t->inner + token_nums), holder, range);
+
+    // SEGFAULT: HERE
+    *(*(t->inner + token_nums) + range) = '\0';
+
+    // MAYBE: i += (range -1)
+    // NEXT_STEP:
+    i += range;
+    token_nums++;
+  }
+
+  return t;
 }
 
-char *token_get_next(char **tokens, int *token_size) {
-  if (*token_size < 0)
+char *token_get_next(Token *t) {
+  if (t == NULL) {
+    editor_log("[ERROR]: t == NULL\n");
     return NULL;
-
-  if (tokens == NULL)
-    return NULL;
-
-  char *next_token = tokens[*token_size];
-
-  if (*token_size < 1) {
-
-    (*token_size)--;
-    return *tokens;
-
-    // token_size--;
-    // free(tokens);
   }
 
-  for (int i = 1; i < *token_size; i++) {
-    tokens[i - 1] = tokens[i];
+  if (t->curr == t->len) {
+    return NULL;
   }
-  // memmove(tokens[*token_size], tokens[*token_size + 1],
-  //         strlen(tokens[*token_size + 1]));
 
-  (*token_size)--;
-  return next_token;
+  char *next = t->inner[t->curr];
+  t->curr++;
+
+  return next;
 }
 
 int token_len(char *str) { return strlen(str); }

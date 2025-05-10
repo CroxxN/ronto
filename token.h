@@ -1,9 +1,14 @@
 #ifndef TOKEN_H_
 #define TOKEN_H_
 
-char *token_push_to_string(char *str, char c);
-int token_tokenize(char *, char, char ***);
-char *token_get_next(char **, int *);
+typedef struct {
+  int len;
+  int curr;
+  char **inner;
+} Token;
+
+Token *token_tokenize(char *, char);
+char *token_get_next(Token *);
 int token_len(char *);
 
 #endif

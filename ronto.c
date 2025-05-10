@@ -142,6 +142,7 @@ bool init_editor(char *file) {
     E.log = fopen("log", "a");
 
   get_window_size(&E.screenrow, &E.screencol);
+
   if (fopen(file, "rb") == NULL) {
     E.file = fopen(file, "w");
     return false;
@@ -1012,14 +1013,14 @@ void expand_rows(void) {
     //   editor_log("[ERROR]: highlighted == NULL\n");
     // // print_highlighted(E.r[i].content);
     // bf_flush();
-    char **tokens = malloc(sizeof(char **));
+    // char **tokens = malloc(sizeof(char **));
 
     // CHANGE:
-    int token_size = token_tokenize(temp, ' ', &tokens) - 1;
+    Token *t = token_tokenize(temp, ' ');
 
     char *token = NULL;
 
-    while ((token = token_get_next(tokens, &token_size)) != NULL) {
+    while ((token = token_get_next(t)) != NULL) {
       editor_log("[INFO]: token == %s\n", token);
       if (syntax_highlight_check(token)) {
         highlighted = extend_string(highlighted, "\x1b[31m");
