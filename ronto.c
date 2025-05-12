@@ -664,8 +664,18 @@ void enter_key(void) {
   int rp = E.y;
   // Handle in-between line enter key pressing
   int cp = E.x;
-  if (!E.r) {
-    add_row(rp, "", 0);
+  if (cp == 0) {
+
+    if (!E.r) {
+      add_row(rp, "", 0);
+    }
+    E.r[rp].content = NULL;
+    E.r[rp].content = realloc(E.r[rp].content, E.r[rp].size + 3);
+    memcpy(E.r[rp].content, "\r\n", 2);
+    E.y++;
+    E.x = 0;
+    E.r[rp].size += 2;
+    // maybe remove this
     return;
   }
   if (cp < E.r[rp].size - 1) {
@@ -682,7 +692,9 @@ void enter_key(void) {
 
   char *buf = "";
 
-  if (cp < size) {
+  // if (cp < size) {
+  // SUGGESTED:
+  if (cp < E.r[rp].size) {
     editor_log("[INFO]: cp < size\n");
     buf = E.r[rp].content + cp + 1;
   }
