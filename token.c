@@ -45,11 +45,10 @@ Token *token_tokenize(char *str, char delimeter) {
 
   t->len = 0;
   t->curr = 0;
-
-  char *token;
+  t->inner = NULL;
 
   char *holder = str;
-  char original_strlen = strlen(holder);
+  int original_strlen = strlen(holder);
 
   int token_nums = 0;
 
@@ -59,18 +58,17 @@ Token *token_tokenize(char *str, char delimeter) {
 
     t->len++;
 
-    t->inner = realloc(t->inner, t->len);
+    t->inner = realloc(t->inner, t->len * sizeof(char *));
 
-    // TODO: increase the index
     *(t->inner + token_nums) = malloc(range + 1);
-    memcpy(*(t->inner + token_nums), holder, range);
 
-    // SEGFAULT: HERE
+    memcpy(*(t->inner + token_nums), holder + i, range);
+
     *(*(t->inner + token_nums) + range) = '\0';
 
     // MAYBE: i += (range -1)
     // NEXT_STEP:
-    i += range;
+    i += (range - 1);
     token_nums++;
   }
 
