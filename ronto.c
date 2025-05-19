@@ -438,10 +438,17 @@ void bf(char *buf, ...) {
     return;
   // Grab the variadic arguments
   va_list v;
+  va_list v_copy;
+
+  va_copy(v_copy, v);
   va_start(v, buf);
 
-  char *f_buf = malloc(buf_len);
+  int needed = vsnprintf(NULL, 0, buf, v_copy);
+  va_end(v_copy);
+
+  char *f_buf = malloc(needed + 1);
   vsprintf(f_buf, buf, v);
+
   if (!f_buf)
     return;
   b.seq = realloc(b.seq, b.l + buf_len);
@@ -664,11 +671,10 @@ void enter_key(void) {
   int rp = E.y;
   // Handle in-between line enter key pressing
   int cp = E.x;
-  if (cp == 0) {
+  // if (cp == 0) {
 
-    if (!E.r) {
-      add_row(rp, "", 0);
-    }
+  if (!E.r) {
+    add_row(rp, "", 0);
     E.r[rp].content = NULL;
     E.r[rp].content = realloc(E.r[rp].content, E.r[rp].size + 3);
     memcpy(E.r[rp].content, "\r\n", 2);
@@ -678,6 +684,7 @@ void enter_key(void) {
     // maybe remove this
     return;
   }
+  // }
   if (cp < E.r[rp].size - 1) {
     editor_log("[INFO]: Enter Between Pressed\n");
     enter_between(rp, cp);
@@ -685,6 +692,8 @@ void enter_key(void) {
   } else {
     editor_log("[INFO]: New line created\n");
   }
+  // TODO: remove this later
+  E.r[rp].content = NULL;
 
   E.r[rp].content = realloc(E.r[rp].content, E.r[rp].size + 3);
   assert(E.r[rp].content != NULL);
@@ -996,36 +1005,6 @@ void expand_rows(void) {
 
     editor_log("[INFO]: E.r[i].content == %s\n", E.r[i].content);
     editor_log("strlen(E.r[i].content) == %d\n", strlen(E.r[i].content));
-    // editor_log("[INFO]: temp == %s\n", temp);
-    // token = strtok(temp, " ");
-
-    // // // // FIX BUGS:
-    // while (token != NULL) {
-    //   if (syntax_highlight_check(token)) {
-    //     highlighted = extend_string(highlighted, "\x1b[31m");
-    //     highlighted = extend_string(highlighted, token);
-    //     highlighted = extend_string(highlighted, "\x1b[0m");
-
-    //   } else {
-    //     highlighted = extend_string(highlighted, token);
-    //   }
-
-    //   token = strtok(NULL, " ");
-
-    //   // check if there still are other words. if so, add a space
-    //   if (token != NULL) {
-    //     highlighted = extend_string(highlighted, " ");
-    //   }
-    // }
-    // // write(STDOUT_FILENO, "\r\n", 2);
-    // // write(STDOUT_FILENO, "\r\x1b[K", 4);
-    // if (highlighted != NULL)
-    //   write(STDOUT_FILENO, highlighted, strlen(highlighted));
-    // else
-    //   editor_log("[ERROR]: highlighted == NULL\n");
-    // // print_highlighted(E.r[i].content);
-    // bf_flush();
-    // char **tokens = malloc(sizeof(char **));
 
     // CHANGE:
     Token *t = token_tokenize(temp, ' ');
@@ -1043,9 +1022,20 @@ void expand_rows(void) {
       }
     }
 
-    write(STDOUT_FILENO, highlighted, strlen(highlighted));
+    highlighted = extend_string(highlighted, "\r\n");
+
+    if (highlighted != NULL)
+      write(STDOUT_FILENO, highlighted, strlen(highlighted));
     // temp[0] = '\0';
 
+    // INFO: NEW LOGIC. May or May not work
+    free(t);
+    free(highlighted);
+    free(temp);
+
+    // t = NULL;
+    highlighted = NULL;
+    // temp = NULL;
     // free(temp);
   }
 }
