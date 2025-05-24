@@ -569,15 +569,19 @@ void add_char_at(char c, int at, int rowpos) {
       E.r[rowpos].content = malloc(1);
     assert(E.r[rowpos].content != NULL);
   }
+  int size = strlen(E.r[rowpos].content);
   // 1+ Hours of BUG.
-  E.r[rowpos].content = realloc(E.r[rowpos].content, E.r[rowpos].size + 1);
+  // E.r[rowpos].content = realloc(E.r[rowpos].content, E.r[rowpos].size + 1);
+  E.r[rowpos].content = realloc(E.r[rowpos].content, size + 1);
   // move all the characters to the right when a character is added to the
   // middle of the content buffer.
-  E.r[rowpos].content[E.r[rowpos].size] = '\0';
+  // E.r[rowpos].content[E.r[rowpos].size] = '\0';
+  E.r[rowpos].content[size] = '\0';
 
   if (at < E.r[rowpos].size) {
-    memmove(E.r[rowpos].content + at + 1, E.r[rowpos].content + at,
-            E.r[rowpos].size - at);
+    // memmove(E.r[rowpos].content + at + 1, E.r[rowpos].content + at,
+    //         E.r[rowpos].size - at);
+    memmove(E.r[rowpos].content + at + 1, E.r[rowpos].content + at, size - at);
   }
   E.r[rowpos].content[at] = c;
   // Add null char at the end
@@ -674,13 +678,14 @@ void enter_key(void) {
   // if (cp == 0) {
 
   if (!E.r) {
-    add_row(rp, "", 0);
-    E.r[rp].content = NULL;
-    E.r[rp].content = realloc(E.r[rp].content, E.r[rp].size + 3);
-    memcpy(E.r[rp].content, "\r\n", 2);
+    add_row(rp, "\r\n", 2);
+    // E.r[rp].content = NULL;
+    // E.r[rp].content = realloc(E.r[rp].content, E.r[rp].size + 3);
+    // memcpy(E.r[rp].content, "\r\n", 2);
     E.y++;
     E.x = 0;
     E.r[rp].size += 2;
+    add_row(rp + 1, NULL, 0);
     // maybe remove this
     return;
   }
@@ -693,13 +698,13 @@ void enter_key(void) {
     editor_log("[INFO]: New line created\n");
   }
   // TODO: remove this later
-  E.r[rp].content = NULL;
+  // E.r[rp].content = NULL;
 
   E.r[rp].content = realloc(E.r[rp].content, E.r[rp].size + 3);
   assert(E.r[rp].content != NULL);
   int size = E.r[rp].size - cp;
 
-  char *buf = "";
+  char *buf = NULL;
 
   // if (cp < size) {
   // SUGGESTED:
@@ -709,7 +714,7 @@ void enter_key(void) {
   }
   // Append carriage return & newline to every row when enter key is pressed
   memcpy(E.r[rp].content + E.r[rp].size, "\r\n", 2);
-  E.r[rp].content[E.r[rp].size + 2] = '\0';
+  *(E.r[rp].content + (E.r[rp].size + 2)) = '\0';
 
   add_row(rp + 1, buf, size);
   E.y++;
@@ -1022,7 +1027,7 @@ void expand_rows(void) {
       }
     }
 
-    highlighted = extend_string(highlighted, "\r\n");
+    // highlighted = extend_string(highlighted, "\r\n");
 
     if (highlighted != NULL)
       write(STDOUT_FILENO, highlighted, strlen(highlighted));
