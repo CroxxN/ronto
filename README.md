@@ -4,7 +4,7 @@
 > Not tested on Windows.<br>
 > Starts in Vim mode. Hit `i` to start editing
 
-​Ronto is a minimalistic terminal-based text editor with rudimentary syntax-highlighting designed to operate with minimal reliance on terminal escape sequences. It offers a subset of Vim keybindings, including hjkl for navigation, i for entering insert mode, and Escape to return to normal mode. Users can open, edit, and save files, as well as create new files from scratch. Ronto handles line and row overflows and implements custom deletion and movement functionalities.
+​Ronto is a minimalistic terminal-based text editor with rudimentary syntax-highlighting designed to operate with minimal reliance on terminal escape sequences. It offers a subset of Vim keybindings, including hjkl for navigation, i for entering insert mode, and Escape to return to normal mode. Users can open, edit, and save files, as well as create new files from scratch. Ronto handles line and row overflows and implements custom deletion and movement functionalities. Ronto also implements a custom tokenizers to handle syntax highlighting and multiple consecutive delimeters.
 
 <br/>
 
