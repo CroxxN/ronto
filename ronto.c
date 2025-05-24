@@ -563,7 +563,7 @@ void add_char_at(char c, int at, int rowpos) {
     return;
   }
   if (!E.r[rowpos].content) {
-    add_row(rowpos, "", 0);
+    add_row(rowpos, NULL, 0);
     // E.r[rowpos].content = malloc(1);
     if (E.r[rowpos].content == NULL & E.y < E.numrow)
       E.r[rowpos].content = malloc(1);
@@ -572,11 +572,11 @@ void add_char_at(char c, int at, int rowpos) {
   int size = strlen(E.r[rowpos].content);
   // 1+ Hours of BUG.
   // E.r[rowpos].content = realloc(E.r[rowpos].content, E.r[rowpos].size + 1);
-  E.r[rowpos].content = realloc(E.r[rowpos].content, size + 1);
+  E.r[rowpos].content = realloc(E.r[rowpos].content, size + 2);
   // move all the characters to the right when a character is added to the
   // middle of the content buffer.
   // E.r[rowpos].content[E.r[rowpos].size] = '\0';
-  E.r[rowpos].content[size] = '\0';
+  E.r[rowpos].content[size + 1] = '\0';
 
   if (at < E.r[rowpos].size) {
     // memmove(E.r[rowpos].content + at + 1, E.r[rowpos].content + at,
@@ -598,7 +598,7 @@ void insert_key(char c) {
     // E.x = 0;
   }
   if (E.y >= E.numrow) {
-    add_row(E.y, "", 0);
+    add_row(E.y, NULL, 0);
     // E.y++;
   }
   add_char_at(c, E.x, E.y);
@@ -609,9 +609,10 @@ void insert_key(char c) {
 // tab-size amount of spaces in the buff.
 // NOTE: use '\t' instead?
 void insert_tab(void) {
-  // for (int i = 0; i < E.tabsize; i++)
-  //   insert_key(' ');
-  insert_key(' ');
+  for (int i = 0; i < E.tabsize; i++)
+    insert_key(' ');
+  // insert_key('\t');
+  // E.x += 4;
 }
 
 // Delete a character from the editor's text buff at position (rpos, at){(x,y)}
@@ -712,8 +713,10 @@ void enter_key(void) {
     editor_log("[INFO]: cp < size\n");
     buf = E.r[rp].content + cp + 1;
   }
+  int string_size = strlen(E.r[rp].content);
   // Append carriage return & newline to every row when enter key is pressed
-  memcpy(E.r[rp].content + E.r[rp].size, "\r\n", 2);
+  // memcpy(E.r[rp].content + E.r[rp].size, "\r\n", 2);
+  memcpy(E.r[rp].content + string_size, "\r\n", 2);
   *(E.r[rp].content + (E.r[rp].size + 2)) = '\0';
 
   add_row(rp + 1, buf, size);
@@ -930,6 +933,7 @@ int handle_key_press(void) {
   case TAB:
     insert_tab();
     E.save = false;
+    return 1;
   default:
     if (E.mode == NORMAL)
       return 0;
