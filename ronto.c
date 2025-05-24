@@ -152,8 +152,6 @@ bool init_editor(char *file) {
   return true;
 }
 
-// STATUS: complete
-
 void disable_raw_mode(void) {
   if (term.original_term == NULL) {
     printf("NULLED POINTER\n");
@@ -218,7 +216,6 @@ int enable_raw_mode(void) {
   return 0;
 }
 
-// STATUS: Incomplete
 void get_window_size(int *row, int *col) {
   struct winsize w;
   if (ioctl(term.fd, TIOCGWINSZ, &w) != 0) {
@@ -358,7 +355,6 @@ void save_file(void) {
   if (fputs(strings, E.file) != 0) {
     editor_log("[ERROR]: Failed to save file: `fputs(strings, E.file) == 0`\n");
     editor_log("[INFO] strlen(strings) == %d\n", strlen(strings));
-    // editor_log((char *)E.file);
   }
   return;
   E.save = true;
@@ -411,7 +407,7 @@ void bootstrap_file(char *file) {
   fclose(f);
 }
 
-// like buf but prints to the stdout immediate instead of storing
+// like buf but prints to the stdout immedietly instead of storing
 void bf_once(char *buf, ...) {
   int buf_len = strlen(buf);
 
@@ -465,7 +461,6 @@ void bf_flush(void) {
   // Reset the append buffer
   free(b.seq);
   // TEST:
-  // free(b.seq);
   b.seq = NULL;
   b.l = 0;
 }
@@ -531,7 +526,6 @@ int add_row(int pos, char *buf, ssize_t len) {
 
 void remove_row(int row) {
   // TODO: Make the code dry
-  // if (!E.r[row].content) return; // Haha silly segfault
   if (E.r[row].size < 1) {
     E.x = E.r[row - 1].size - 2;
     E.y--;
@@ -570,17 +564,13 @@ void add_char_at(char c, int at, int rowpos) {
     assert(E.r[rowpos].content != NULL);
   }
   int size = strlen(E.r[rowpos].content);
-  // 1+ Hours of BUG.
-  // E.r[rowpos].content = realloc(E.r[rowpos].content, E.r[rowpos].size + 1);
   E.r[rowpos].content = realloc(E.r[rowpos].content, size + 2);
+
   // move all the characters to the right when a character is added to the
   // middle of the content buffer.
-  // E.r[rowpos].content[E.r[rowpos].size] = '\0';
   E.r[rowpos].content[size + 1] = '\0';
 
   if (at < E.r[rowpos].size) {
-    // memmove(E.r[rowpos].content + at + 1, E.r[rowpos].content + at,
-    //         E.r[rowpos].size - at);
     memmove(E.r[rowpos].content + at + 1, E.r[rowpos].content + at, size - at);
   }
   E.r[rowpos].content[at] = c;
@@ -589,17 +579,15 @@ void add_char_at(char c, int at, int rowpos) {
 }
 
 // TODO: move the `add_row` line to `add_char_at` function
-// NOTE: Usage of E.x and E.y are perfectly valid. DONOT use E.rowoff and shit
+// NOTE: Usage of E.x and E.y are perfectly valid. DONOT use E.rowoff
 void insert_key(char c) {
   if (iscntrl(c) && c != 9)
     return;
   if (E.x >= E.screencol) {
     E.coloff++;
-    // E.x = 0;
   }
   if (E.y >= E.numrow) {
     add_row(E.y, NULL, 0);
-    // E.y++;
   }
   add_char_at(c, E.x, E.y);
   E.x++;
@@ -611,8 +599,6 @@ void insert_key(char c) {
 void insert_tab(void) {
   for (int i = 0; i < E.tabsize; i++)
     insert_key(' ');
-  // insert_key('\t');
-  // E.x += 4;
 }
 
 // Delete a character from the editor's text buff at position (rpos, at){(x,y)}
@@ -676,18 +662,13 @@ void enter_key(void) {
   int rp = E.y;
   // Handle in-between line enter key pressing
   int cp = E.x;
-  // if (cp == 0) {
 
   if (!E.r) {
     add_row(rp, "\r\n", 2);
-    // E.r[rp].content = NULL;
-    // E.r[rp].content = realloc(E.r[rp].content, E.r[rp].size + 3);
-    // memcpy(E.r[rp].content, "\r\n", 2);
     E.y++;
     E.x = 0;
     E.r[rp].size += 2;
     add_row(rp + 1, NULL, 0);
-    // maybe remove this
     return;
   }
   // }
@@ -698,8 +679,6 @@ void enter_key(void) {
   } else {
     editor_log("[INFO]: New line created\n");
   }
-  // TODO: remove this later
-  // E.r[rp].content = NULL;
 
   E.r[rp].content = realloc(E.r[rp].content, E.r[rp].size + 3);
   assert(E.r[rp].content != NULL);
@@ -707,15 +686,14 @@ void enter_key(void) {
 
   char *buf = NULL;
 
-  // if (cp < size) {
   // SUGGESTED:
   if (cp < E.r[rp].size) {
     editor_log("[INFO]: cp < size\n");
     buf = E.r[rp].content + cp + 1;
   }
   int string_size = strlen(E.r[rp].content);
+
   // Append carriage return & newline to every row when enter key is pressed
-  // memcpy(E.r[rp].content + E.r[rp].size, "\r\n", 2);
   memcpy(E.r[rp].content + string_size, "\r\n", 2);
   *(E.r[rp].content + (E.r[rp].size + 2)) = '\0';
 
@@ -893,7 +871,6 @@ int key_up(void) {
   return -1;
 }
 
-// FEAT: rudimentary functionality complete
 int handle_key_press(void) {
   int c = key_up();
   editor_log("[INFO] c == %c\n", c);
@@ -944,37 +921,6 @@ int handle_key_press(void) {
   }
 }
 
-// TODO: Solve ugs
-void expand_rows_temps(void) {
-  int i = 0, y = 0, size, row_size = E.numrow;
-
-  if (E.y >= E.screenrow) {
-    i = E.y - E.screenrow;
-  }
-  if (E.numrow >= E.screenrow) {
-    row_size = E.screenrow + i + 1;
-  }
-  if (E.x > E.screencol) {
-    y = E.x - E.screencol + 1;
-  }
-
-  for (; i < row_size; i++) {
-    if (E.r[i].content == NULL)
-      return;
-    // TODO: Fix bugs
-    if ((E.x < E.screencol) && (E.r[i].size) > E.screencol) {
-      size = E.screencol;
-    } else if ((E.x >= E.screencol) && (E.r[i].size >= E.screencol)) {
-      size = E.screencol;
-    } else {
-      size = E.r[i].size - y;
-    }
-    editor_log("[INFO] E.r[i].content + y == %s\n", E.r[i].content);
-    write(STDOUT_FILENO, E.r[i].content + y, size);
-    bf_flush();
-  }
-}
-
 void expand_rows(void) {
   // this y isn't used anywhere but the editor segfaults if we remove this line
   // idk what bizzare C quirk this is.
@@ -990,27 +936,13 @@ void expand_rows(void) {
   if (E.numrow >= E.screenrow) {
     row_size = E.screenrow + i + 1;
   }
-  // if (E.x > E.screencol) {
-  //   y = E.x - E.screencol + 1;
-  // }
 
   for (; i < row_size; i++) {
 
     if (E.r[i].content == NULL)
       return;
-    // TODO: Fix bugs
-    // if ((E.x < E.screencol) && (E.r[i].size) > E.screencol) {
-    //   size = E.screencol;
-    // } else if ((E.x >= E.screencol) && (E.r[i].size >= E.screencol)) {
-    //   size = E.screencol;
-    // } else {
-    //   size = E.r[i].size - y;
-    // }
 
     char *highlighted = NULL;
-    // highlighted = malloc(size);
-
-    // char *token;
 
     char *temp = malloc(strlen(E.r[i].content) + 1);
     strcpy(temp, E.r[i].content);
@@ -1019,7 +951,6 @@ void expand_rows(void) {
     editor_log("[INFO]: E.r[i].content == %s\n", E.r[i].content);
     editor_log("strlen(E.r[i].content) == %d\n", strlen(E.r[i].content));
 
-    // CHANGE:
     Token *t = token_tokenize(temp, ' ');
 
     char *token = NULL;
@@ -1035,22 +966,15 @@ void expand_rows(void) {
       }
     }
 
-    // highlighted = extend_string(highlighted, "\r\n");
-
     if (highlighted != NULL)
       write(STDOUT_FILENO, highlighted, strlen(highlighted));
-    // temp[0] = '\0';
 
-    // INFO: NEW LOGIC. May or May not work
     // TODO: free all inner structures
     free(t);
     free(highlighted);
     free(temp);
 
-    // t = NULL;
     highlighted = NULL;
-    // temp = NULL;
-    // free(temp);
   }
 }
 
