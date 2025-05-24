@@ -17,7 +17,7 @@ int str_range(char *string, char delimeter) {
 
   if (string[0] == delimeter)
 
-    for (int i = 0; i < strlen(string); i++)
+    for (unsigned long i = 0; i < strlen(string); i++)
       if (string[i] == delimeter)
         index++;
       else
@@ -25,7 +25,7 @@ int str_range(char *string, char delimeter) {
 
   else
 
-    for (int i = 0; i < strlen(string); i++)
+    for (unsigned long i = 0; i < strlen(string); i++)
       if (string[i] != delimeter)
         index++;
       else

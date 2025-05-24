@@ -976,7 +976,11 @@ void expand_rows_temps(void) {
 }
 
 void expand_rows(void) {
-  int i = 0, y = 0, size, row_size = E.numrow;
+  // this y isn't used anywhere but the editor segfaults if we remove this line
+  // idk what bizzare C quirk this is.
+  int y = 0;
+
+  int i = 0, row_size = E.numrow;
 
   // temp container to hold syntax-highlighted strings
 
@@ -986,22 +990,22 @@ void expand_rows(void) {
   if (E.numrow >= E.screenrow) {
     row_size = E.screenrow + i + 1;
   }
-  if (E.x > E.screencol) {
-    y = E.x - E.screencol + 1;
-  }
+  // if (E.x > E.screencol) {
+  //   y = E.x - E.screencol + 1;
+  // }
 
   for (; i < row_size; i++) {
 
     if (E.r[i].content == NULL)
       return;
     // TODO: Fix bugs
-    if ((E.x < E.screencol) && (E.r[i].size) > E.screencol) {
-      size = E.screencol;
-    } else if ((E.x >= E.screencol) && (E.r[i].size >= E.screencol)) {
-      size = E.screencol;
-    } else {
-      size = E.r[i].size - y;
-    }
+    // if ((E.x < E.screencol) && (E.r[i].size) > E.screencol) {
+    //   size = E.screencol;
+    // } else if ((E.x >= E.screencol) && (E.r[i].size >= E.screencol)) {
+    //   size = E.screencol;
+    // } else {
+    //   size = E.r[i].size - y;
+    // }
 
     char *highlighted = NULL;
     // highlighted = malloc(size);
@@ -1038,6 +1042,7 @@ void expand_rows(void) {
     // temp[0] = '\0';
 
     // INFO: NEW LOGIC. May or May not work
+    // TODO: free all inner structures
     free(t);
     free(highlighted);
     free(temp);
