@@ -15,7 +15,6 @@
 
 - Open, edit and save files
 - Syntax highlighting for a select C keywords and types
-- Open a new file and start editing
 - A subset of Vim keybindings (`hjkl` sequence, `escape`, and `i` implemented)
 - Line overflow handling
 - Row overflow handling
@@ -49,8 +48,13 @@
 ```
 - To enable logging
 ```bash
-> ./ronto -l{*}
-``` 
+> ./ronto -l {*}
+```
+- To clean the log file and the binary
+```bash
+> make clean
+```
+
 - `Control-q` to quit
 - `Control-s` to save
 - `Control-c` to copy to clipboard
